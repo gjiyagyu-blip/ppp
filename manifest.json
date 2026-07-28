@@ -1,7 +1,7 @@
 {
   "name": "PHOTO TILER",
   "short_name": "PHOTO TILER",
-  "start_url": "./photo-tiler_iphone",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000"
