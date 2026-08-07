@@ -699,6 +699,7 @@
       <button class="tab active" data-mode="slideshow">① スライドショーモード</button>
       <button class="tab" data-mode="compose">② 画像指定モード</button>
     </nav>
+    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v154</span>
     <button id="settingsBtn" class="btn ghost">⚙ 設定</button>
     <button id="previewBtn" class="btn ghost">⛶ プレビュー(全画面向け)</button>
   </header>
@@ -1264,6 +1265,18 @@
     const el = document.createElement('div');
     el.className = 'toast-msg' + (type==='error' ? ' error' : '');
     el.textContent = msg;
+    if(type==='error'){
+      // Errors stay up until tapped away -- the default auto-dismiss is too fast to
+      // read on mobile, especially for longer messages, and there's no log file to
+      // check back against there (logEvent only writes anywhere when a save folder
+      // is connected, which no mobile browser supports).
+      el.title = 'タップして閉じる';
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', ()=>{ el.classList.remove('show'); setTimeout(()=> el.remove(), 250); });
+      toastEl.appendChild(el);
+      requestAnimationFrame(()=> el.classList.add('show'));
+      return;
+    }
     toastEl.appendChild(el);
     requestAnimationFrame(()=> el.classList.add('show'));
     setTimeout(()=>{
@@ -3749,6 +3762,7 @@
           const idbKey = 'img:' + uniqueFileNameFor(rec.name);
           await idbSetIn(IDB_IMAGE_STORE, idbKey, blob);
           rec.idbKey = idbKey;
+          delete rec.storedFile; // stale reference to a folder this device has no access to
         }catch(e){}
         delete rec.embeddedImageData;
       }
