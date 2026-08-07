@@ -3684,10 +3684,19 @@
   // the export checkbox for that reason.
   async function embedLocalImagesInRecords(records){
     for(const rec of records){
-      if(rec.idbKey && !rec.embeddedImageData){
+      if(rec.embeddedImageData) continue;
+      if(rec.idbKey){
         try{
           const blob = await idbGetIn(IDB_IMAGE_STORE, rec.idbKey);
           if(blob) rec.embeddedImageData = await blobToDataURL(blob);
+        }catch(e){}
+      } else if(rec.storedFile && saveDirHandle){
+        // A save-folder-based favorite (only possible with a connected save folder,
+        // e.g. on desktop) has no IndexedDB entry at all -- its bytes live in a real
+        // file in that folder instead. Read it from there for embedding.
+        try{
+          const file = await readFileFromFolder(rec.storedFile);
+          rec.embeddedImageData = await blobToDataURL(file);
         }catch(e){}
       }
     }
