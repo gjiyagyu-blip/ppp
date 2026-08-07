@@ -3,8 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon.png">
 <title>Photo Tiler — 画像タイリングビューワー</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -44,6 +42,7 @@
   input, select, textarea{ font-family:var(--font-ui); }
 
   #app{ display:flex; flex-direction:column; height:100vh; }
+  #sidebarBackdrop{ display:none; }
 
   /* ---------------- top bar ---------------- */
   #topbar{
@@ -292,26 +291,16 @@
   .lightbox-nav:disabled{ opacity:0.25; cursor:not-allowed; }
   .lightbox-nav-prev{ left:20px; }
   .lightbox-nav-next{ right:20px; }
-  .lightbox-menu-wrap{ position:relative; flex:0 0 auto; align-self:flex-start; }
-  .lightbox-menu-btn{
+  .lightbox-menu-wrap{ display:flex; flex-direction:column; gap:8px; flex:0 0 auto; align-self:flex-start; }
+  .lightbox-icon-btn{
     width:36px; height:36px; border-radius:50%; background:rgba(255,255,255,0.08);
-    color:#fff; border:1px solid rgba(255,255,255,0.25); font-size:1.2rem; line-height:1;
+    color:#fff; border:1px solid rgba(255,255,255,0.25); font-size:1.05rem; line-height:1;
     cursor:pointer; display:flex; align-items:center; justify-content:center;
     transition:background .12s;
   }
-  .lightbox-menu-btn:hover{ background:rgba(255,255,255,0.18); }
-  .lightbox-menu-panel{
-    position:absolute; top:44px; left:0; background:var(--panel); border:1px solid var(--line);
-    border-radius:8px; padding:6px; min-width:210px; display:flex; flex-direction:column; gap:2px;
-    box-shadow:0 6px 24px rgba(0,0,0,0.45);
-  }
-  .lightbox-menu-item{
-    text-align:left; background:none; border:none; color:#fff; padding:9px 12px; border-radius:6px;
-    font-size:0.85rem; cursor:pointer; white-space:nowrap; width:100%;
-  }
-  .lightbox-menu-item:hover{ background:rgba(255,255,255,0.1); }
-  .lightbox-menu-item.is-fav{ color:#f0c419; }
-  .lightbox-menu-item:disabled{ opacity:0.5; cursor:not-allowed; }
+  .lightbox-icon-btn:hover{ background:rgba(255,255,255,0.18); }
+  .lightbox-icon-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+  .lightbox-icon-btn.is-fav{ color:#f0c419; border-color:rgba(240,196,25,0.5); }
 
   #settingsModal{
     position:fixed; inset:0; z-index:220; display:none;
@@ -328,11 +317,11 @@
   .settings-modal-body{ overflow-y:auto; }
   .settings-modal-body .side-sec:last-child{ margin-bottom:0; border-bottom:none; }
 
-  #cropModal{
+  #cropModal, #paintModal{
     position:fixed; inset:0; z-index:220; display:none;
     background:rgba(6,7,9,0.92); align-items:center; justify-content:center;
   }
-  #cropModal.show{ display:flex; }
+  #cropModal.show, #paintModal.show{ display:flex; }
   .crop-modal-inner{
     width:min(92vw, 900px); max-height:92vh; background:var(--panel);
     border:1px solid var(--line); border-radius:10px; padding:18px 20px;
@@ -358,7 +347,35 @@
   .crop-handle.tr{ right:-9px; top:-9px; cursor:nesw-resize; }
   .crop-handle.bl{ left:-9px; bottom:-9px; cursor:nesw-resize; }
   .crop-handle.br{ right:-9px; bottom:-9px; cursor:nwse-resize; }
+  .crop-handle.t{ left:50%; top:-9px; margin-left:-8px; cursor:ns-resize; }
+  .crop-handle.b{ left:50%; bottom:-9px; margin-left:-8px; cursor:ns-resize; }
+  .crop-handle.l{ top:50%; left:-9px; margin-top:-8px; cursor:ew-resize; }
+  .crop-handle.r{ top:50%; right:-9px; margin-top:-8px; cursor:ew-resize; }
   .crop-actions{ display:flex; gap:8px; margin-top:14px; align-items:center; }
+  #paintImgWrap{ position:relative; display:inline-block; line-height:0; }
+  #paintImgWrap img{ max-width:100%; max-height:64vh; display:block; user-select:none; -webkit-user-drag:none; }
+  #paintSvg{ position:absolute; inset:0; width:100%; height:100%; cursor:crosshair; }
+  .paint-toolbar{
+    display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;
+    font-size:0.8rem; color:var(--text-dim);
+  }
+  .paint-toolbar input[type=number]{ padding:4px 6px; }
+  .paint-toolbar input[type=color]{
+    width:34px; height:30px; padding:2px; background:none; border:1px solid var(--line);
+    border-radius:6px; cursor:pointer;
+  }
+  .paint-overlay-svg{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  #paintCursorPreview{
+    position:absolute; border:1.5px solid #fff; border-radius:50%; mix-blend-mode:difference;
+    pointer-events:none; transform:translate(-50%,-50%); display:none;
+  }
+  .paint-presets{ display:flex; align-items:center; gap:4px; }
+  .paint-preset-swatch{
+    width:22px; height:22px; border-radius:50%; border:2px solid rgba(255,255,255,0.25);
+    cursor:pointer; padding:0; transition:border-color .12s, transform .1s;
+  }
+  .paint-preset-swatch:hover{ transform:scale(1.12); }
+  .paint-preset-swatch.active{ border-color:var(--accent); }
   .lightbox-panel .lb-tags{ display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
   .lightbox-panel .lb-tag{
     display:inline-flex; align-items:center; gap:3px;
@@ -384,12 +401,12 @@
   .lb-tag-add-input:focus{ outline:none; border-color:var(--accent); width:140px; }
 
   /* ---------------- tag statistics modal ---------------- */
-  #tagStatsModal{
+  #tagStatsModal, #prefReportModal{
     position:fixed; inset:0; background:var(--bg); z-index:150; display:none;
     flex-direction:column; padding:22px 30px 30px;
   }
-  #tagStatsModal.show{ display:flex; }
-  #tagStatsStatus{ flex:0 0 auto; margin:0 0 12px; }
+  #tagStatsModal.show, #prefReportModal.show{ display:flex; }
+  #tagStatsStatus, #prefReportStatus{ flex:0 0 auto; margin:0 0 12px; }
   .tag-stats-list{
     flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column;
     gap:5px; max-width:760px; padding-right:6px;
@@ -438,12 +455,19 @@
 
   /* ---------------- active tag-filter banner (pool grids) ---------------- */
   .tag-filter-bar{
-    display:flex; align-items:center; gap:8px; background:var(--accent-soft);
+    display:flex; align-items:flex-start; gap:8px; background:var(--accent-soft);
     border:1px solid var(--accent); border-radius:6px; padding:6px 10px;
-    margin-bottom:8px; font-size:0.78rem; color:var(--accent-strong);
+    margin-bottom:8px; font-size:0.78rem; color:var(--accent-strong); flex-wrap:wrap;
   }
-  .tag-filter-bar .tfb-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .tag-filter-bar button{ margin-left:auto; flex:0 0 auto; }
+  .tag-filter-bar .tfb-label{ flex:0 0 auto; white-space:nowrap; padding-top:3px; }
+  .tag-filter-bar > button{ margin-left:auto; flex:0 0 auto; }
+  .tfb-chips{ display:flex; flex-wrap:wrap; gap:5px; flex:1; min-width:0; }
+  .tfb-chip{
+    display:inline-flex; align-items:center; gap:4px; background:rgba(255,255,255,0.08);
+    border:1px solid var(--accent); border-radius:10px; padding:2px 4px 2px 8px; font-size:0.74rem;
+  }
+  .tfb-chip button{ margin-left:0; background:none; border:none; color:inherit; cursor:pointer; font-size:0.7rem; padding:0 2px; opacity:0.75; }
+  .tfb-chip button:hover{ opacity:1; }
 
   /* ---------------- danbooru tag box ---------------- */
   .danbooru-box{ display:flex; flex-direction:column; gap:8px; }
@@ -460,6 +484,20 @@
   .tag-suggest-item:hover{ background:var(--panel-2); }
   .tag-suggest-item .tcount{ font-family:var(--font-mono); font-size:0.66rem; color:var(--text-faint); white-space:nowrap; }
   .tag-suggest-item .tname{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .tag-history-list{ display:flex; flex-wrap:wrap; gap:5px; }
+  .tag-history-chip{
+    display:inline-flex; align-items:center; gap:5px;
+    background:var(--panel-2); border:1px solid var(--line); border-radius:12px;
+    color:var(--text-dim); font-size:0.72rem; padding:3px 6px 3px 10px; cursor:pointer;
+    max-width:100%; transition:background .12s, border-color .12s;
+  }
+  .tag-history-chip:hover{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent-strong); }
+  .tag-history-chip .thc-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tag-history-chip .thc-remove{
+    background:none; border:none; color:inherit; cursor:pointer; font-size:0.7rem; padding:0 2px; opacity:0.6; flex:0 0 auto;
+  }
+  .tag-history-chip .thc-remove:hover{ opacity:1; }
 
   /* ---------------- tree / stage rendering ----------------
      NOTE: node.dir is 'row'/'col', but those bare names collide with the unrelated
@@ -546,9 +584,7 @@
     padding:8px 13px; border-radius:var(--radius); cursor:pointer; font-size:0.8rem;
   }
   body.preview-mode #topbar, body.preview-mode #sidebar{ display:none; }
-  body.preview-mode #exitPreviewBtn{
-  display:block;
-  }
+  #exitPreviewBtn{ display:none; }
 
   /* ---------------- fixed slideshow start/stop panel ---------------- */
   #slideshowControls{
@@ -572,15 +608,69 @@
   }
   .toast-msg.show{ opacity:1; transform:translateY(0); }
   .toast-msg.error{ border-color:var(--danger); color:#f2a9a4; }
+  /* ==================== mobile layout (narrow screens) ====================
+     Priority is slideshow viewing: preview mode already hides #topbar/#sidebar
+     entirely, so the main gap was the setup screen beforehand, where the
+     320px-fixed sidebar left almost no room for the stage on a phone-width
+     viewport. Below this width the sidebar becomes a slide-in drawer (toggled
+     from the topbar) instead of a permanent side-by-side column, and modals
+     that assumed desktop-width space (lightbox, settings, crop tool, etc.)
+     drop their fixed pixel widths in favor of the viewport's actual size. */
+  @media (max-width: 860px){
+    #sidebarToggleBtn{ display:inline-flex !important; }
+    .brand{ display:none; }
+    #topbar{ gap:8px; padding:0 10px; }
+    .tabs{ gap:4px; }
+    .tab{ padding:8px 8px; font-size:0.74rem; }
+    #previewBtn{ padding:8px 10px; font-size:0; }
+    #previewBtn::before{ content:'⛶'; font-size:1rem; }
+    #settingsBtn{ padding:8px 10px; }
+
+    #sidebar{
+      position:fixed; top:52px; bottom:0; left:0; z-index:90;
+      width:88vw; max-width:360px; flex:0 0 auto;
+      transform:translateX(-100%); transition:transform .18s ease;
+      box-shadow:2px 0 24px rgba(0,0,0,0.5);
+    }
+    #sidebar.mobile-open{ transform:translateX(0); }
+    #sidebarBackdrop{
+      display:none; position:fixed; inset:52px 0 0 0; z-index:85;
+      background:rgba(0,0,0,0.55);
+    }
+    #sidebarBackdrop.show{ display:block; }
+    #stageWrap{ width:100%; }
+
+    /* Modals: fixed pixel widths meant for desktop overflow a phone screen entirely. */
+    .settings-modal-inner, .crop-modal-inner{ width:94vw; max-height:94vh; padding:14px 16px; }
+    .lightbox-inner{ max-width:98vw; max-height:94vh; flex-direction:column; }
+    .lightbox-img-wrap{ max-width:100%; }
+    .lightbox-img-wrap img{ max-width:100%; max-height:40vh; }
+    .lightbox-panel-outer{ width:100%; flex:1 1 auto; }
+    .lightbox-menu-wrap{ position:absolute; top:8px; right:8px; }
+    #tagStatsModal, #prefReportModal, #editModeModal{ padding:14px 12px 20px; }
+    .tag-stats-list, #prefReportBody{ max-width:100%; }
+    .tag-stat-row{ flex-wrap:wrap; }
+    .tag-stat-row .tsr-name{ min-width:0; max-width:100%; flex:1 1 100%; }
+    .tag-stat-row .tsr-bar{ flex:1 1 auto; order:2; }
+    .tag-stat-row .tsr-count{ order:3; }
+
+    /* Touch targets: hover-only affordances (like the divide-cell buttons in
+       compose mode) don't work on touch, but that mode is lower priority for
+       mobile per the current plan -- this pass focuses on making buttons and
+       pool thumbnails comfortably tappable rather than reworking hover UI. */
+    .btn{ padding:9px 14px; }
+    .btn.small{ padding:8px 11px; }
+  }
 </style>
 </head>
 <body>
 <div id="app">
   <header id="topbar">
+    <button id="sidebarToggleBtn" class="btn ghost" style="display:none">☰</button>
     <div class="brand">PHOTO <span>TILER</span></div>
     <nav class="tabs">
-      <button class="tab active" data-mode="compose">① 画像指定モード</button>
-      <button class="tab" data-mode="slideshow">② スライドショーモード</button>
+      <button class="tab active" data-mode="slideshow">① スライドショーモード</button>
+      <button class="tab" data-mode="compose">② 画像指定モード</button>
     </nav>
     <button id="settingsBtn" class="btn ghost">⚙ 設定</button>
     <button id="previewBtn" class="btn ghost">⛶ プレビュー(全画面向け)</button>
@@ -595,7 +685,7 @@
       <div class="settings-modal-body">
         <div class="side-sec">
           <h3>ローカル画像の保存フォルダ</h3>
-          <p class="hint" style="margin-top:0" id="saveDirHint">未設定 — お気に入り/マイリストにローカル画像を保存する際、ブラウザの保存容量内で画像データを埋め込みます(枚数に制限あり)。</p>
+          <p class="hint" style="margin-top:0" id="saveDirHint">未設定 — お気に入り/マイリストにローカル画像を保存する際、ブラウザの保存容量内で画像データを埋め込みます(枚数に制限あり)。保存フォルダを接続すると、画像本体に加えて「お気に入り・マイリスト・各種設定・Danbooruタグキャッシュ」もこのフォルダにバックアップされ、ブラウザのキャッシュ/保存領域が消えても復元できるようになります。</p>
           <div class="row">
             <button id="saveDirPickBtn" class="btn small">📁 保存フォルダを選択</button>
             <button id="saveDirReconnectBtn" class="btn small" hidden>🔌 再接続</button>
@@ -628,10 +718,15 @@
           <input type="number" id="danbooruRecheckDaysInput" min="1" max="365" step="1" value="14">
           <p class="hint" style="margin-top:4px">一括照合で「一致度が低く結びつけなかった」画像は、この日数が経つまで一括照合の対象から自動でスキップされます(Danbooruのデータベースは日々更新されるため、時間を置くと一致するようになる場合があります)。個別の「🔎 照合」ボタンや「🔄 強制的に再照合」は、この日数に関係なく常に実行されます。</p>
           <label class="check-row"><input type="checkbox" id="showForceRecheckBtnChk">「🔄 強制的に再照合」ボタンを表示する</label>
+          <label class="field-label">タグキャッシュの保持日数</label>
+          <input type="number" id="tagCacheDaysInput" min="1" max="3650" step="1" value="30">
+          <p class="hint" style="margin-top:4px">タグ統計・絞り込み・詳細表示などで取得したDanbooruのタグ情報を、この日数の間は再取得せず使い回します(タグは投稿後に追加・修正されることがあるため、あまり長くしすぎると古い情報のまま気づきにくくなります)。保存フォルダが接続されていれば、このキャッシュはブラウザを閉じても消えないようフォルダにも保存されます。</p>
         </div>
       </div>
     </div>
   </div>
+
+  <div id="sidebarBackdrop"></div>
 
   <div id="body">
     <aside id="sidebar">
@@ -797,6 +892,10 @@
             </div>
             <button id="slideDanbooruBtn" class="btn small" style="width:100%">🔍 検索する</button>
             <p class="hint" id="slideDanbooruStatus" style="margin:0"></p>
+            <div id="slideDanbooruHistoryWrap" style="margin-top:8px">
+              <p class="hint" style="margin:0 0 4px">検索履歴</p>
+              <div id="slideDanbooruHistoryList" class="tag-history-list"></div>
+            </div>
           </div>
         </div>
 
@@ -809,8 +908,10 @@
             <button class="btn small ghost" id="slidePoolSelClearBtn">解除</button>
           </div>
           <div class="tag-filter-bar" id="slideTagFilterBar" hidden>
-            <span class="tfb-label">🏷 <span id="slideTagFilterName"></span> で絞り込み中</span>
-            <button type="button" class="btn small ghost" id="slideTagFilterClearBtn">✕ 解除</button>
+            <span class="tfb-label">🏷 絞り込み中:</span>
+            <div class="tfb-chips" id="slideTagFilterChips"></div>
+            <button type="button" class="btn small ghost" id="slideTagFilterModeBtn" title="ANDは全て含む画像、ORはいずれか含む画像を表示します">AND</button>
+            <button type="button" class="btn small ghost" id="slideTagFilterClearBtn">✕ 全解除</button>
           </div>
           <div class="pool-grid" id="slidePoolGrid"></div>
           <button id="slideDbBulkSearchBtn" class="btn small" style="width:100%; margin-bottom:6px;">🔎 ローカル画像をDanbooruで一括照合</button>
@@ -823,7 +924,7 @@
         </div>
 
         <div class="side-sec">
-          <h3>お気に入り <span class="count" id="favPoolCount">0</span> <button type="button" class="btn small ghost edit-mode-btn" id="favPoolEditModeBtn">⛶ 編集モード</button> <button type="button" class="btn small ghost edit-mode-btn" id="favPoolTagStatsBtn">📊 タグ統計</button> <button type="button" class="btn small ghost edit-mode-btn" id="favRecommendAutoBtn" title="お気に入りの傾向から自動でタグを選んで検索します(毎回同じタグに偏らないようになっています)">🎲 おまかせ</button></h3>
+          <h3>お気に入り <span class="count" id="favPoolCount">0</span> <button type="button" class="btn small ghost edit-mode-btn" id="favPoolEditModeBtn">⛶ 編集モード</button> <button type="button" class="btn small ghost edit-mode-btn" id="favPoolTagStatsBtn">📊 タグ統計</button> <button type="button" class="btn small ghost edit-mode-btn" id="favRecommendAutoBtn" title="お気に入りの傾向から自動でタグを選んで検索します(毎回同じタグに偏らないようになっています)">🎲 おまかせ</button> <button type="button" class="btn small ghost edit-mode-btn" id="favPrefReportBtn" title="お気に入り全体から、タグの組み合わせの傾向を分析します(試験版)">🧭 傾向レポート</button></h3>
           <div class="pool-selbar" id="favPoolSelBar" hidden>
             <span class="selcount" id="favPoolSelCount">0件選択</span>
             <button class="btn small" id="favPoolSelAddToSlideBtn">➕ プールに追加</button>
@@ -833,8 +934,10 @@
             <button class="btn small ghost" id="favPoolSelClearBtn">解除</button>
           </div>
           <div class="tag-filter-bar" id="favTagFilterBar" hidden>
-            <span class="tfb-label">🏷 <span id="favTagFilterName"></span> で絞り込み中</span>
-            <button type="button" class="btn small ghost" id="favTagFilterClearBtn">✕ 解除</button>
+            <span class="tfb-label">🏷 絞り込み中:</span>
+            <div class="tfb-chips" id="favTagFilterChips"></div>
+            <button type="button" class="btn small ghost" id="favTagFilterModeBtn" title="ANDは全て含む画像、ORはいずれか含む画像を表示します">AND</button>
+            <button type="button" class="btn small ghost" id="favTagFilterClearBtn">✕ 全解除</button>
           </div>
           <div class="pool-grid" id="favPoolGrid"></div>
           <div class="row"><button id="favAddAllToSlideBtn" class="btn small ghost" style="width:100%">➕ すべてスライドショーのプールに追加</button></div>
@@ -897,7 +1000,7 @@
 
     <main id="stageWrap">
       <div id="stage"></div>
-      <button id="exitPreviewBtn">✕</button>
+      <button id="exitPreviewBtn">✕ 編集画面に戻る(Esc)</button>
     </main>
   </div>
 </div>
@@ -917,6 +1020,14 @@
   <div class="edit-mode-head">
     <h2 id="editModeTitle">編集モード</h2>
     <button id="editModeCloseBtn" class="btn ghost" type="button">✕ 閉じる (Esc)</button>
+  </div>
+  <div class="tag-input-wrap" id="editModeTagFilterWrap" style="margin-bottom:10px" hidden>
+    <input type="text" id="editModeTagFilterInput" placeholder="タグで絞り込み(Enterで追加、部分一致)" autocomplete="off">
+    <div class="tag-suggest" id="editModeTagFilterSuggest"></div>
+    <div style="display:flex; align-items:flex-start; gap:8px; margin-top:6px">
+      <div class="tfb-chips" id="editModeTagFilterChips" style="flex:1"></div>
+      <button type="button" class="btn small ghost" id="editModeTagFilterModeBtn" title="ANDは全て含む画像、ORはいずれか含む画像を表示します">AND</button>
+    </div>
   </div>
   <div class="pool-selbar" id="editModeSelBar" hidden>
     <span class="selcount" id="editModeSelCount">0件選択</span>
@@ -942,6 +1053,15 @@
   <div class="tag-stats-list" id="tagStatsList"></div>
 </div>
 
+<div id="prefReportModal">
+  <div class="edit-mode-head">
+    <h2 id="prefReportTitle">好みの傾向レポート(試験版)</h2>
+    <button id="prefReportCloseBtn" class="btn ghost" type="button">✕ 閉じる (Esc)</button>
+  </div>
+  <p class="hint" id="prefReportStatus"></p>
+  <div class="tag-stats-list" id="prefReportBody"></div>
+</div>
+
 <div id="lightbox">
   <button id="lightboxClose" type="button" title="閉じる (Esc)">✕</button>
   <button id="lightboxPrev" type="button" class="lightbox-nav lightbox-nav-prev" title="前の画像 (←)">‹</button>
@@ -949,19 +1069,16 @@
   <div class="lightbox-inner">
     <div class="lightbox-img-wrap">
       <img id="lightboxImg" src="" alt="">
+      <svg id="lightboxPaintOverlay" class="paint-overlay-svg" preserveAspectRatio="none" viewBox="0 0 100 100"></svg>
     </div>
     <div class="lightbox-panel-outer">
       <div class="lightbox-panel" id="lightboxPanel"></div>
     </div>
     <div class="lightbox-menu-wrap">
-      <button id="lightboxMenuBtn" type="button" class="lightbox-menu-btn" title="メニュー">⋮</button>
-      <div id="lightboxMenuPanel" class="lightbox-menu-panel" hidden>
-        <button id="lightboxFavBtn" type="button" class="lightbox-menu-item">☆ お気に入りに追加</button>
-        <button id="lightboxCropBtn" type="button" class="lightbox-menu-item">✂️ トリミング</button>
-        <button id="lightboxCropResetBtn" type="button" class="lightbox-menu-item" hidden>↩️ トリミング解除</button>
-        <button id="lightboxHqBtn" type="button" class="lightbox-menu-item" hidden>🔍 高画質画像を取得</button>
-        <button id="lightboxLqBtn" type="button" class="lightbox-menu-item" hidden>🪶 軽量版に戻す</button>
-      </div>
+      <button id="lightboxFavBtn" type="button" class="lightbox-icon-btn" title="お気に入りに追加">☆</button>
+      <button id="lightboxCropBtn" type="button" class="lightbox-icon-btn" title="トリミング">✂️</button>
+      <button id="lightboxPaintBtn" type="button" class="lightbox-icon-btn" title="塗りつぶし">🖌️</button>
+      <button id="lightboxHqBtn" type="button" class="lightbox-icon-btn" title="高画質画像を取得" hidden>🔍</button>
     </div>
   </div>
 </div>
@@ -978,17 +1095,56 @@
           <div class="crop-handle tr" data-handle="tr"></div>
           <div class="crop-handle bl" data-handle="bl"></div>
           <div class="crop-handle br" data-handle="br"></div>
+          <div class="crop-handle t" data-handle="t"></div>
+          <div class="crop-handle b" data-handle="b"></div>
+          <div class="crop-handle l" data-handle="l"></div>
+          <div class="crop-handle r" data-handle="r"></div>
         </div>
       </div>
     </div>
     <div class="crop-actions">
       <button id="cropFullBtn" class="btn ghost" type="button">全体を選択</button>
+      <button id="cropResetBtn" class="btn ghost" type="button" title="トリミングを解除して保存します">↩️ トリミング解除</button>
       <span style="flex:1"></span>
       <button id="cropCancelBtn" class="btn ghost" type="button">キャンセル</button>
       <button id="cropApplyBtn" class="btn primary" type="button">✂️ 適用</button>
     </div>
   </div>
 </div>
+
+<div id="paintModal">
+  <div class="crop-modal-inner">
+    <h3>塗りつぶし</h3>
+    <p class="hint" style="margin:0 0 10px">ドラッグでなぞった部分を塗りつぶします。トリミングと同様に元画像は保持されるので、後から調整・解除できます。詳細表示・スライドショーに反映されます(一覧のサムネイルには反映されません)。</p>
+    <div class="crop-stage" id="paintStage">
+      <div id="paintImgWrap">
+        <img id="paintImg" src="" alt="">
+        <svg id="paintSvg" preserveAspectRatio="none" viewBox="0 0 100 100"></svg>
+        <div id="paintCursorPreview"></div>
+      </div>
+    </div>
+    <div class="paint-toolbar">
+      <label class="field-label" style="margin:0">ブラシサイズ</label>
+      <input type="range" id="paintSizeSlider" min="1" max="30" step="0.5" value="6" style="width:120px">
+      <label class="field-label" style="margin:0">色</label>
+      <input type="color" id="paintColorPicker" value="#000000">
+      <span style="display:flex; align-items:center; gap:3px; font-size:0.74rem; color:var(--text-dim)">
+        R<input type="number" id="paintR" min="0" max="255" value="0" style="width:52px">
+        G<input type="number" id="paintG" min="0" max="255" value="0" style="width:52px">
+        B<input type="number" id="paintB" min="0" max="255" value="0" style="width:52px">
+      </span>
+      <div class="paint-presets" id="paintPresets"></div>
+      <button id="paintUndoBtn" class="btn small ghost" type="button">↩️ 1つ戻す</button>
+      <button id="paintClearBtn" class="btn small ghost" type="button">🗑 全部消す</button>
+    </div>
+    <div class="crop-actions">
+      <span style="flex:1"></span>
+      <button id="paintCancelBtn" class="btn ghost" type="button">キャンセル</button>
+      <button id="paintApplyBtn" class="btn primary" type="button">🖌️ 適用</button>
+    </div>
+  </div>
+</div>
+
 
 <input type="file" id="hiddenFileInput" accept="image/*" hidden>
 <input type="file" id="hiddenFileInputMulti" accept="image/*" multiple hidden>
@@ -1195,6 +1351,10 @@
       const url = URL.createObjectURL(srcBlob);
       const obj = { id: item.id, url, name: item.name || '', el: item.el, cors:true, danbooruId: null, storedFile: fileName, isLocalOrigin:true };
       if(item.sourceUrl) obj.sourceUrl = item.sourceUrl;
+      if(item.cropRect) obj.cropRect = item.cropRect;
+      if(item.paintStrokes) obj.paintStrokes = item.paintStrokes;
+      if(item.note) obj.note = item.note;
+      if(item.userTags && item.userTags.length) obj.userTags = item.userTags;
       return obj;
     }
     // No save folder: falls back to embedding as a data URL directly in localStorage,
@@ -1205,6 +1365,10 @@
     const dataUrl = await blobToDataURL(resized);
     const obj = { id: item.id, url: dataUrl, name: item.name || '', el: item.el, cors:true, danbooruId: null, isLocalOrigin:true };
     if(item.sourceUrl) obj.sourceUrl = item.sourceUrl;
+    if(item.cropRect) obj.cropRect = item.cropRect;
+      if(item.paintStrokes) obj.paintStrokes = item.paintStrokes;
+    if(item.note) obj.note = item.note;
+    if(item.userTags && item.userTags.length) obj.userTags = item.userTags;
     return obj;
   }
 
@@ -1218,6 +1382,7 @@
       const el = await loadImgEl(url);
       const obj = { id: ++imgSeq, url, name: rec.name || '', el, cors:true, danbooruId: rec.danbooruId || null, storedFile: rec.storedFile, isLocalOrigin:true };
       if(rec.cropRect) obj.cropRect = rec.cropRect;
+      if(rec.paintStrokes) obj.paintStrokes = rec.paintStrokes;
       if(rec.isHighQuality) obj.isHighQuality = true;
       if(rec.sourceUrl) obj.sourceUrl = rec.sourceUrl;
       if(rec.note) obj.note = rec.note;
@@ -1233,6 +1398,7 @@
     // local-origin image either way.
     if(rec.isLocalOrigin || /^data:/i.test(rec.url)) obj.isLocalOrigin = true;
     if(rec.cropRect) obj.cropRect = rec.cropRect;
+      if(rec.paintStrokes) obj.paintStrokes = rec.paintStrokes;
     if(rec.isHighQuality) obj.isHighQuality = true;
     if(rec.sourceUrl) obj.sourceUrl = rec.sourceUrl;
       if(rec.note) obj.note = rec.note;
@@ -1425,6 +1591,58 @@
     inputEl.addEventListener('keydown', e=>{ if(e.key==='Escape') hide(); });
     document.addEventListener('click', e=>{ if(!e.target.closest('.tag-input-wrap')) hide(); });
     return { hide };
+  }
+
+  /* Like attachTagAutocomplete, but for a single-tag "filter box": selecting a suggestion
+     or pressing Enter applies the tag immediately via onApply, rather than inserting it
+     into a multi-tag search string for further editing. Enter on an empty box clears
+     the filter (onApply(null)). */
+  function attachTagFilterAutocomplete(inputEl, suggestEl, onApply){
+    let timer = null, abortToken = 0;
+    function hide(){ suggestEl.style.display='none'; suggestEl.innerHTML=''; }
+    function apply(name){ inputEl.value = name.replace(/_/g,' '); hide(); onApply(name); }
+    async function fetchSug(query){
+      const my = ++abortToken;
+      try{
+        const url = `https://danbooru.donmai.us/autocomplete.json?search[query]=${encodeURIComponent(query)}&search[type]=tag_query&limit=8`;
+        const res = await fetch(url);
+        if(my !== abortToken) return;
+        if(!res.ok){ hide(); return; }
+        const items = await res.json();
+        if(my !== abortToken) return;
+        if(!Array.isArray(items) || !items.length){ hide(); return; }
+        suggestEl.innerHTML = '';
+        items.forEach(it=>{
+          const name = it.value || it.antecedent || it.label;
+          if(!name) return;
+          const row = document.createElement('div');
+          row.className = 'tag-suggest-item';
+          const nameEl = document.createElement('span'); nameEl.className='tname'; nameEl.textContent=(it.label||name).replace(/_/g,' ');
+          const countEl = document.createElement('span'); countEl.className='tcount'; countEl.textContent = it.post_count!=null ? it.post_count.toLocaleString() : '';
+          row.appendChild(nameEl); row.appendChild(countEl);
+          row.addEventListener('mousedown', e=>{ e.preventDefault(); apply(name); });
+          suggestEl.appendChild(row);
+        });
+        suggestEl.style.display = 'block';
+      }catch(e){ hide(); }
+    }
+    inputEl.addEventListener('input', ()=>{
+      clearTimeout(timer);
+      const q = inputEl.value.trim();
+      if(!q){ hide(); return; }
+      timer = setTimeout(()=> fetchSug(q), 220);
+    });
+    inputEl.addEventListener('keydown', e=>{
+      if(e.key==='Escape'){ hide(); return; }
+      if(e.key==='Enter'){
+        e.preventDefault();
+        const q = inputEl.value.trim().replace(/ /g,'_');
+        hide();
+        onApply(q || null);
+      }
+    });
+    inputEl.addEventListener('blur', ()=> setTimeout(hide, 150));
+    document.addEventListener('click', e=>{ if(!e.target.closest('.tag-input-wrap')) hide(); });
   }
 
   /* ===================== pool grid rendering ===================== */
@@ -1640,24 +1858,92 @@
     { key:'tag_string_general', cls:'', label:'一般タグ' }
   ];
   const danbooruTagCache = new Map();
+  const danbooruTagCacheTimestamps = new Map(); // id -> ms epoch when fetched, for expiry
+  function getTagCacheDays(){
+    const settings = loadSettings();
+    const v = clamp(parseFloat(settings.tagCacheDays), 1, 3650);
+    return Number.isFinite(v) ? v : 30;
+  }
+  function isTagCacheFresh(id){
+    if(!danbooruTagCache.has(id)) return false;
+    const ts = danbooruTagCacheTimestamps.get(id);
+    if(!ts) return true; // no timestamp recorded (e.g. set during this same session) -- treat as fresh
+    return (Date.now() - ts) < getTagCacheDays()*24*60*60*1000;
+  }
+  function setTagCacheEntry(id, groups){
+    danbooruTagCache.set(id, groups);
+    danbooruTagCacheTimestamps.set(id, Date.now());
+  }
+  // Debounced: persisting after every single post would be wasteful when a whole
+  // batch just landed at once, so this waits a moment for the current burst of
+  // sets to finish before writing once.
+  let tagCachePersistTimer = null;
+  function scheduleTagCachePersist(){
+    if(!saveDirHandle) return;
+    clearTimeout(tagCachePersistTimer);
+    tagCachePersistTimer = setTimeout(()=>{
+      const obj = {};
+      danbooruTagCache.forEach((groups, id)=>{ obj[id] = { groups, cachedAt: danbooruTagCacheTimestamps.get(id) || Date.now() }; });
+      writeJsonToSaveFolder(SAVE_FOLDER_TAGCACHE_FILE, obj);
+    }, 800);
+  }
+  async function loadTagCacheFromSaveFolder(){
+    const obj = await readJsonFromSaveFolder(SAVE_FOLDER_TAGCACHE_FILE);
+    if(!obj) return;
+    const cutoff = Date.now() - getTagCacheDays()*24*60*60*1000;
+    Object.entries(obj).forEach(([idStr, entry])=>{
+      const id = parseInt(idStr, 10);
+      if(!entry || !entry.groups || !Number.isFinite(id)) return;
+      if(entry.cachedAt && entry.cachedAt < cutoff) return; // expired -- left uncached, refetched on demand
+      danbooruTagCache.set(id, entry.groups);
+      danbooruTagCacheTimestamps.set(id, entry.cachedAt || Date.now());
+    });
+  }
   // Whether `item` (a Danbooru-linked image) carries `tag` -- only meaningful once
   // that item's tags have actually been fetched into danbooruTagCache (e.g. via
   // showTagStats, which always fetches every linked item in the pool up front).
+  // Substring match (not exact) -- so filtering by "gloves" also catches tags like
+  // "white_gloves" or "fingerless_gloves" without needing the exact compound tag.
   function itemHasTag(item, tag){
-    if(item.userTags && item.userTags.includes(tag)) return true;
+    if(item.userTags && item.userTags.some(t=> t.includes(tag))) return true;
     if(!item.danbooruId) return false;
     const groups = danbooruTagCache.get(item.danbooruId);
     if(!groups) return false;
-    return groups.some(g=> g.tags.includes(tag));
+    return groups.some(g=> g.tags.some(t=> t.includes(tag)));
+  }
+  // Combines every tag in the filter list per `mode`: 'AND' requires all of them,
+  // 'OR' requires at least one.
+  function itemMatchesTagFilter(item, tags, mode){
+    if(!tags.length) return true;
+    return mode==='OR' ? tags.some(t=> itemHasTag(item, t)) : tags.every(t=> itemHasTag(item, t));
+  }
+  // Shared renderer for a filter bar's chip list -- each chip removable on its own,
+  // used by both the favorites and slideshow-pool tag filter bars and (in edit mode)
+  // the corresponding filter input's own chip display.
+  function renderTagFilterChips(chipsEl, tags, onRemove){
+    chipsEl.innerHTML = '';
+    tags.forEach(tag=>{
+      const chip = document.createElement('span');
+      chip.className = 'tfb-chip';
+      const label = document.createElement('span');
+      label.textContent = tag.replace(/_/g,' ');
+      chip.appendChild(label);
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button'; removeBtn.textContent = '×'; removeBtn.title = 'この条件を解除';
+      removeBtn.addEventListener('click', ()=> onRemove(tag));
+      chip.appendChild(removeBtn);
+      chipsEl.appendChild(chip);
+    });
   }
 
   async function fetchDanbooruTags(id){
-    if(danbooruTagCache.has(id)) return danbooruTagCache.get(id);
+    if(isTagCacheFresh(id)) return danbooruTagCache.get(id);
     const res = await fetch(`https://danbooru.donmai.us/posts/${id}.json`);
     if(!res.ok) throw new Error('http '+res.status);
     const post = await res.json();
     const groups = postToTagGroups(post);
-    danbooruTagCache.set(id, groups);
+    setTagCacheEntry(id, groups);
+    scheduleTagCachePersist();
     return groups;
   }
   function postToTagGroups(post){
@@ -1675,15 +1961,17 @@
     const res = await fetch(url);
     if(!res.ok) throw new Error('http '+res.status);
     const posts = await res.json();
-    posts.forEach(post=> danbooruTagCache.set(post.id, postToTagGroups(post)));
+    posts.forEach(post=> setTagCacheEntry(post.id, postToTagGroups(post)));
+    scheduleTagCachePersist();
   }
 
   // Aggregates tag frequency across every Danbooru-linked image in a pool/favorites
   // list. Only images that have actually been linked to a Danbooru post (via the
   // match search, or manual "結びつける") carry tag data -- plain local files or
   // plain URL images have no tags to count. Already-cached posts (e.g. viewed in the
-  // lightbox before, or from a previous tag-stats run) cost nothing; only uncached
-  // posts are fetched, in batches of up to 100 IDs per request.
+  // lightbox before, or from a previous tag-stats run) cost nothing unless their
+  // cache entry has expired (see タグキャッシュ設定); only uncached/expired posts are
+  // fetched, in batches of up to 100 IDs per request.
   // Fetches (and caches) Danbooru tag data for every Danbooru-linked item in a pool, then
   // aggregates tag -> {count, cls} across them. Shared by the tag-stats display and the
   // one-click recommendation feature below. onProgress(fetched, total), if given, is called
@@ -1691,7 +1979,7 @@
   async function computeTagCounts(pool, onProgress){
     const linked = pool.filter(item=> item.danbooruId);
     if(!linked.length) return { linked, counts: new Map() };
-    const uniqueIds = Array.from(new Set(linked.map(item=> item.danbooruId).filter(id=> !danbooruTagCache.has(id))));
+    const uniqueIds = Array.from(new Set(linked.map(item=> item.danbooruId).filter(id=> !isTagCacheFresh(id))));
     const batches = [];
     for(let i=0; i<uniqueIds.length; i+=DANBOORU_TAG_BATCH_SIZE) batches.push(uniqueIds.slice(i, i+DANBOORU_TAG_BATCH_SIZE));
     if(batches.length){
@@ -1727,6 +2015,140 @@
   }
 
   let tagStatsToken = 0;
+  // Tags common enough on almost any anime-art collection that they'd dominate a
+  // co-occurrence ranking without saying anything about *this particular* user's
+  // preferences -- mostly file/post metadata rather than actual subject matter.
+  // This list is a starting point and may need tuning once real reports come back
+  // dominated by something not on it.
+  const PREF_REPORT_BORING_TAGS = new Set([
+    '1girl','1boy','solo','solo_focus','highres','absurdres','commentary','commentary_request',
+    'translated','translation_request','bad_id','bad_pixiv_id','artist_name','signature','watermark',
+    'web_address','dated','simple_background','looking_at_viewer'
+  ]);
+  const PREF_REPORT_MIN_TAG_COUNT = 3; // ignore tags seen fewer times than this -- too little signal to matter
+  const PREF_REPORT_MIN_COOCCUR = 3;   // ignore pairs seen together fewer times than this -- avoids noise
+  const PREF_REPORT_MAX_TAGS = 60;     // cap how many distinct tags enter the pairwise comparison, for performance
+  let prefReportToken = 0;
+  async function showPreferenceReport(){
+    const myToken = ++prefReportToken;
+    prefReportModalEl.classList.add('show');
+    prefReportBodyEl.innerHTML = '';
+    if(!favorites.length){ prefReportStatusEl.textContent = 'お気に入りが空です。'; return; }
+    const linkedCount = favorites.filter(item=> item.danbooruId).length;
+    if(!linkedCount){
+      prefReportStatusEl.textContent = 'Danbooruに紐付けられたお気に入りがありません(このレポートはDanbooru連携画像が対象です)。';
+      return;
+    }
+    prefReportStatusEl.textContent = `投稿情報を取得中… 0/${linkedCount}件`;
+    const { linked, counts } = await computeTagCounts(favorites, (fetched, total)=>{
+      if(myToken===prefReportToken) prefReportStatusEl.textContent = `投稿情報を取得中… ${fetched}/${total}件`;
+    });
+    if(myToken !== prefReportToken) return;
+    // Restrict to tags that (a) aren't "boring" metadata tags and (b) show up often
+    // enough to mean something, then cap the count for pairwise performance --
+    // even 60 tags is already ~1,770 pairs to walk, which is instant, but there's
+    // no reason to let it grow unbounded on a very large, very tag-diverse collection.
+    const candidateTags = Array.from(counts.entries())
+      .filter(([tag, rec])=> !PREF_REPORT_BORING_TAGS.has(tag) && rec.count >= PREF_REPORT_MIN_TAG_COUNT)
+      .sort((a,b)=> b[1].count - a[1].count)
+      .slice(0, PREF_REPORT_MAX_TAGS)
+      .map(([tag])=> tag);
+    if(candidateTags.length < 2){
+      prefReportStatusEl.textContent = `${linked.length}件のDanbooru連携画像を確認しましたが、傾向を出すのに十分な繰り返しタグが見つかりませんでした(各タグ${PREF_REPORT_MIN_TAG_COUNT}回以上の出現が必要です)。`;
+      return;
+    }
+    // Build, for each candidate tag, the set of linked-favorite indices that carry it
+    // -- turns "does image X have tag A and tag B" into a fast set-intersection
+    // instead of re-scanning every image for every pair.
+    const tagToImageSet = new Map();
+    candidateTags.forEach(tag=> tagToImageSet.set(tag, new Set()));
+    linked.forEach((item, idx)=>{
+      const groups = danbooruTagCache.get(item.danbooruId) || [];
+      const allTags = new Set();
+      groups.forEach(g=> g.tags.forEach(t=> allTags.add(t)));
+      candidateTags.forEach(tag=>{ if(allTags.has(tag)) tagToImageSet.get(tag).add(idx); });
+    });
+    const N = linked.length;
+    const pairs = [];
+    for(let i=0;i<candidateTags.length;i++){
+      for(let j=i+1;j<candidateTags.length;j++){
+        const tagA = candidateTags[i], tagB = candidateTags[j];
+        const setA = tagToImageSet.get(tagA), setB = tagToImageSet.get(tagB);
+        let co = 0;
+        (setA.size < setB.size ? setA : setB).forEach(idx=>{ if((setA.size<setB.size?setB:setA).has(idx)) co++; });
+        if(co < PREF_REPORT_MIN_COOCCUR) continue;
+        // Lift: how much more often these two appear together than pure chance would
+        // predict from their individual frequencies. >1 means "more than chance",
+        // and larger means a stronger, more surprising pairing.
+        const lift = (co / N) / ((setA.size/N) * (setB.size/N));
+        pairs.push({ tagA, tagB, co, lift });
+      }
+    }
+    prefReportStatusEl.textContent = `お気に入り${favorites.length}件中${linked.length}件のDanbooru連携画像、${candidateTags.length}種類のタグから分析しました(試験版のため、除外基準や表示内容は今後調整予定です)。`;
+    prefReportBodyEl.innerHTML = '';
+    function section(title, hint, items, formatRight){
+      const heading = document.createElement('div');
+      heading.className = 'tag-stat-group-heading';
+      heading.textContent = title;
+      prefReportBodyEl.appendChild(heading);
+      if(hint){
+        const p = document.createElement('p');
+        p.className = 'hint'; p.style.margin = '0 0 8px';
+        p.textContent = hint;
+        prefReportBodyEl.appendChild(p);
+      }
+      if(!items.length){
+        const p = document.createElement('p');
+        p.className = 'hint'; p.style.margin = '0 0 12px';
+        p.textContent = '該当する組み合わせは見つかりませんでした。';
+        prefReportBodyEl.appendChild(p);
+        return;
+      }
+      items.forEach(it=>{
+        const row = document.createElement('div');
+        row.className = 'tag-stat-row';
+        row.style.cursor = 'default';
+        const name = document.createElement('div'); name.className = 'tsr-name';
+        name.style.minWidth = '260px'; name.style.maxWidth = '420px';
+        name.textContent = `${it.tagA.replace(/_/g,' ')} × ${it.tagB.replace(/_/g,' ')}`;
+        const bar = document.createElement('div'); bar.className = 'tsr-bar';
+        const fill = document.createElement('div'); fill.className = 'tsr-bar-fill';
+        fill.style.width = Math.min(100, it.barPct) + '%';
+        bar.appendChild(fill);
+        const count = document.createElement('div'); count.className = 'tsr-count';
+        count.textContent = formatRight(it);
+        row.appendChild(name); row.appendChild(bar); row.appendChild(count);
+        const searchBtn = document.createElement('button');
+        searchBtn.type = 'button'; searchBtn.className = 'tsr-filter-btn'; searchBtn.textContent = '🔍 検索';
+        searchBtn.title = `「${it.tagA.replace(/_/g,' ')}」×「${it.tagB.replace(/_/g,' ')}」の組み合わせをDanbooruで探す`;
+        searchBtn.addEventListener('click', e=>{
+          e.stopPropagation();
+          prefReportModalEl.classList.remove('show');
+          prefReportToken++;
+          findRecommendationsForTags([it.tagA, it.tagB]);
+        });
+        row.appendChild(searchBtn);
+        prefReportBodyEl.appendChild(row);
+      });
+    }
+    const byCount = pairs.slice().sort((a,b)=> b.co - a.co).slice(0, 20);
+    const maxCo = byCount.length ? byCount[0].co : 1;
+    section(
+      'よく組み合わさるタグ',
+      '一緒に付いていることが多いタグの組み合わせです(件数順)。',
+      byCount.map(p=> ({ ...p, barPct: p.co/maxCo*100 })),
+      p=> `${p.co}件`
+    );
+    const bySurprise = pairs.slice().sort((a,b)=> b.lift - a.lift).slice(0, 20);
+    const maxLift = bySurprise.length ? bySurprise[0].lift : 1;
+    section(
+      '意外と多い組み合わせ',
+      'それぞれ単体の頻度から予想されるより、一緒に出てくることが多い組み合わせです(数値が大きいほど「意外」)。',
+      bySurprise.map(p=> ({ ...p, barPct: p.lift/maxLift*100 })),
+      p=> `${p.co}件 (x${p.lift.toFixed(1)})`
+    );
+  }
+
   async function showTagStats(pool, label, onFilterByTag, opts){
     opts = opts || {};
     const myToken = ++tagStatsToken;
@@ -1806,7 +2228,6 @@
           filterBtn.addEventListener('click', e=>{
             e.stopPropagation();
             onFilterByTag(tag);
-            closeTagStats();
           });
           row.appendChild(filterBtn);
         }
@@ -1880,12 +2301,16 @@
     lbToken++;
     const myToken = lbToken;
     updateLightboxNav();
-    lightboxMenuPanel.hidden = true;
-    lightboxCropResetBtn.hidden = !item.cropRect;
-    lightboxHqBtn.hidden = !item.danbooruId || !!item.isHighQuality;
-    lightboxLqBtn.hidden = !item.danbooruId || !item.isHighQuality;
+    updateLightboxHqBtn(item);
     lightboxImgEl.src = item.url;
     lightboxImgEl.style.objectViewBox = cssObjectViewBoxFor(item) || '';
+    lightboxPaintOverlayEl.innerHTML = '';
+    if(item.paintStrokes && item.paintStrokes.length){
+      const cr = cropRectOf(item);
+      item.paintStrokes.forEach(s=> lightboxPaintOverlayEl.appendChild(buildPaintPolyline(strokeToCropped(s, cr))));
+    }
+    lightboxImgEl.onload = positionLightboxPaintOverlay;
+    positionLightboxPaintOverlay();
     const panel = lightboxPanelEl;
     panel.innerHTML = '';
     const h = document.createElement('h4');
@@ -1904,8 +2329,16 @@
     // reached from that pool's own section or a view mirroring the same array
     // (e.g. compose mode's "お気に入りから追加" list uses the same favorites array).
     function tagFilterSetterForCurrentPool(){
-      if(lbPool===favorites) return tag=>{ favTagFilter=tag; renderFavPool(); showToast(`「${tag.replace(/_/g,' ')}」でお気に入りを絞り込みました`); };
-      if(lbPool===slidePool) return tag=>{ slideTagFilter=tag; renderSlidePool(); showToast(`「${tag.replace(/_/g,' ')}」でプールを絞り込みました`); };
+      if(lbPool===favorites) return tag=>{
+        if(!favTagFilter.includes(tag)) favTagFilter = [...favTagFilter, tag];
+        renderFavPool();
+        showToast(`「${tag.replace(/_/g,' ')}」を絞り込み条件に追加しました(現在${favTagFilter.length}件の条件)`);
+      };
+      if(lbPool===slidePool) return tag=>{
+        if(!slideTagFilter.includes(tag)) slideTagFilter = [...slideTagFilter, tag];
+        renderSlidePool();
+        showToast(`「${tag.replace(/_/g,' ')}」を絞り込み条件に追加しました(現在${slideTagFilter.length}件の条件)`);
+      };
       return null;
     }
     // Resolves {getPool, rerender} for whichever pool the lightbox is currently showing,
@@ -2061,7 +2494,6 @@
     }
     updateLightboxFavBtn(item);
     lightboxFavBtn.onclick = async ()=>{
-      lightboxMenuPanel.hidden = true;
       lightboxFavBtn.disabled = true;
       await toggleFavorite(item);
       lightboxFavBtn.disabled = false;
@@ -2072,9 +2504,34 @@
   function updateLightboxFavBtn(item){
     const isFav = isFavoriteItem(item);
     lightboxFavBtn.classList.toggle('is-fav', isFav);
-    lightboxFavBtn.textContent = isFav ? '★ お気に入り済み' : '☆ お気に入りに追加';
+    lightboxFavBtn.textContent = isFav ? '★' : '☆';
     lightboxFavBtn.title = isFav ? 'クリックでお気に入りから削除' : 'クリックでお気に入りに追加';
   }
+  // Fetching high quality and reverting to the lighter version share one icon
+  // button, the same way the star toggles between ☆/★ -- which action it performs
+  // depends on the item's current isHighQuality state.
+  function updateLightboxHqBtn(item){
+    lightboxHqBtn.hidden = !item.danbooruId;
+    lightboxHqBtn.textContent = item.isHighQuality ? '🪶' : '🔍';
+    lightboxHqBtn.title = item.isHighQuality ? 'クリックで軽量版に戻す' : 'クリックで高画質画像を取得';
+  }
+  // lightboxImgEl uses object-fit:contain, which can letterbox (leave empty space)
+  // when the image's aspect ratio doesn't match its box -- so the overlay must match
+  // the image's actual rendered rect, not just fill the wrapper the way the stage
+  // leaves' object-fit:cover overlay can.
+  function positionLightboxPaintOverlay(){
+    if(!lightboxEl.classList.contains('show')) return;
+    const wrapBox = lightboxImgEl.parentElement.getBoundingClientRect();
+    const imgBox = lightboxImgEl.getBoundingClientRect();
+    if(!imgBox.width || !imgBox.height) return;
+    lightboxPaintOverlayEl.style.left = (imgBox.left - wrapBox.left) + 'px';
+    lightboxPaintOverlayEl.style.top = (imgBox.top - wrapBox.top) + 'px';
+    lightboxPaintOverlayEl.style.right = 'auto';
+    lightboxPaintOverlayEl.style.bottom = 'auto';
+    lightboxPaintOverlayEl.style.width = imgBox.width + 'px';
+    lightboxPaintOverlayEl.style.height = imgBox.height + 'px';
+  }
+  window.addEventListener('resize', positionLightboxPaintOverlay);
   function closeLightbox(){
     lightboxEl.classList.remove('show');
     lightboxImgEl.src = '';
@@ -2232,6 +2689,100 @@
     showToast('トリミングを解除しました');
   }
 
+  // Paint-over strokes are metadata too (item.paintStrokes: an array of {color, size,
+  // points}), but unlike the editor's live drawing space, they're always stored
+  // relative to the FULL original image (0-1, ignoring any crop) -- a stable
+  // reference that doesn't shift if the crop is changed later. cropRectOf/toFull/
+  // toCropped convert between that stable space and "whatever's currently visible
+  // given this item's crop" for editing and display. Same non-destructive reasoning
+  // as crop otherwise: no pixel access needed to *display* it (an SVG polyline drawn
+  // on top works everywhere regardless of CORS), only PNG export needs real pixel
+  // access, which was already CORS-gated independently. Per the user's request this
+  // only needs to show in the lightbox and slideshow/compose stage, not pool
+  // thumbnails -- buildPaintOverlaySvg() is called from just those two places.
+  let paintTargetItem = null;
+  let paintWorkingStrokes = [];
+  let paintCurrentStroke = null;
+  let paintColor = '#000000';
+  let paintCursorSize = 6;
+
+  function cropRectOf(item){ return (item && item.cropRect) || { x:0, y:0, w:1, h:1 }; }
+  // Full-image-space -> the space currently visible through this crop (what the
+  // paint editor and every other display context actually show).
+  function strokeToCropped(stroke, cr){
+    return { color: stroke.color, size: stroke.size / cr.w,
+      points: stroke.points.map(p=> ({ x:(p.x-cr.x)/cr.w, y:(p.y-cr.y)/cr.h })) };
+  }
+  // The inverse: whatever's visible right now -> stable full-image-space for storage.
+  function strokeToFull(stroke, cr){
+    return { color: stroke.color, size: stroke.size * cr.w,
+      points: stroke.points.map(p=> ({ x: cr.x + p.x*cr.w, y: cr.y + p.y*cr.h })) };
+  }
+  function buildPaintPolyline(stroke){
+    const poly = document.createElementNS('http://www.w3.org/2000/svg','polyline');
+    poly.setAttribute('points', stroke.points.map(p=> `${(p.x*100).toFixed(2)},${(p.y*100).toFixed(2)}`).join(' '));
+    poly.setAttribute('fill','none');
+    poly.setAttribute('stroke', stroke.color);
+    poly.setAttribute('stroke-width', stroke.size);
+    poly.setAttribute('stroke-linecap','round');
+    poly.setAttribute('stroke-linejoin','round');
+    return poly;
+  }
+  // Read-only overlay for display contexts (lightbox, stage leaves). Returns null if
+  // there's nothing to paint, so callers can skip appending anything. Converts from
+  // the item's stable full-image storage space to whatever's currently visible
+  // through its crop (if any) -- so display always matches the current crop even if
+  // painting happened before the crop was set or changed.
+  function buildPaintOverlaySvg(item){
+    if(!item.paintStrokes || !item.paintStrokes.length) return null;
+    const cr = cropRectOf(item);
+    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('class', 'paint-overlay-svg');
+    svg.setAttribute('preserveAspectRatio','none');
+    svg.setAttribute('viewBox','0 0 100 100');
+    item.paintStrokes.forEach(s=> svg.appendChild(buildPaintPolyline(strokeToCropped(s, cr))));
+    return svg;
+  }
+  function renderPaintEditorSvg(){
+    paintSvgEl.innerHTML = '';
+    paintWorkingStrokes.forEach(s=> paintSvgEl.appendChild(buildPaintPolyline(s)));
+    if(paintCurrentStroke) paintSvgEl.appendChild(buildPaintPolyline(paintCurrentStroke));
+  }
+  function paintEventPoint(e){
+    const box = paintImgEl.getBoundingClientRect();
+    const t = e.touches && e.touches[0];
+    const clientX = t ? t.clientX : e.clientX, clientY = t ? t.clientY : e.clientY;
+    return { x: clamp((clientX-box.left)/box.width, 0, 1), y: clamp((clientY-box.top)/box.height, 0, 1) };
+  }
+  function openPaintTool(item){
+    paintTargetItem = item;
+    // The editor always paints over the same cropped view shown everywhere else, so
+    // convert the item's stably-stored (full-image-space) strokes into that view for
+    // editing; they get converted back on Apply.
+    const cr = cropRectOf(item);
+    paintWorkingStrokes = (item.paintStrokes || []).map(s=> strokeToCropped(s, cr));
+    paintCurrentStroke = null;
+    paintImgEl.src = item.url;
+    paintImgEl.style.objectViewBox = cssObjectViewBoxFor(item) || '';
+    paintImgEl.onload = renderPaintEditorSvg;
+    paintModalEl.classList.add('show');
+  }
+  function closePaintTool(){
+    paintModalEl.classList.remove('show');
+    paintTargetItem = null;
+    paintWorkingStrokes = [];
+    paintCurrentStroke = null;
+  }
+  function applyPaint(item, strokesInCroppedSpace){
+    const cr = cropRectOf(item);
+    item.paintStrokes = strokesInCroppedSpace.length ? strokesInCroppedSpace.map(s=> strokeToFull(s, cr)) : null;
+    if(isFavoriteItem(item)) persistFavorites();
+    refreshFavoriteAwareGrids();
+    renderComposeStage();
+    if(lightboxEl.classList.contains('show')) openLightbox(item, lbPool, lbIndex);
+    showToast(strokesInCroppedSpace.length ? '塗りつぶしを適用しました' : '塗りつぶしを解除しました');
+  }
+
   /* ===================== local-image save folder (File System Access API) =====================
      Chromium browsers (Chrome/Edge) can let the page hold a handle to a folder on disk and
      write/read files in it directly, with the user's explicit permission. We use this so
@@ -2302,10 +2853,20 @@
       pendingDirHandle = null;
       await idbSet('saveDir', handle);
       updateSaveDirUI();
+      bootstrapSaveFolderBackups();
       showToast(`保存フォルダを「${handle.name}」に設定しました`);
     }catch(e){
       if(e.name !== 'AbortError') showToast('フォルダの選択に失敗しました', 'error');
     }
+  }
+  // Writes the app's current in-memory favorites/My Lists/settings/tag cache to a
+  // newly-(re)connected save folder right away, rather than waiting for the next
+  // natural change to each of them to trigger a write.
+  function bootstrapSaveFolderBackups(){
+    writeJsonToSaveFolder(SAVE_FOLDER_FAVORITES_FILE, favorites.map(serializableRecord).filter(Boolean));
+    writeJsonToSaveFolder(SAVE_FOLDER_MYLISTS_FILE, getMyLists());
+    writeJsonToSaveFolder(SAVE_FOLDER_SETTINGS_FILE, loadSettings());
+    scheduleTagCachePersist();
   }
 
   async function requestSaveFolderPermission(){
@@ -2316,6 +2877,7 @@
         saveDirHandle = pendingDirHandle;
         pendingDirHandle = null;
         updateSaveDirUI();
+        bootstrapSaveFolderBackups();
         showToast('保存フォルダに再接続しました');
         return true;
       }
@@ -2350,6 +2912,47 @@
     const fileHandle = await saveDirHandle.getFileHandle(fileName);
     return await fileHandle.getFile();
   }
+  // Generic JSON mirrors of the four data types localStorage alone would otherwise
+  // lose if the browser's storage were ever cleared: favorites, My Lists, settings,
+  // and the Danbooru tag cache. Filenames are prefixed with "_" so they naturally
+  // sort above image files and read as clearly app-internal if the user browses the
+  // folder directly. Writes are fire-and-forget (no-op silently if not connected or
+  // if the write fails) -- this is a durability nice-to-have, not something that
+  // should ever block or interrupt the action that triggered it.
+  const SAVE_FOLDER_FAVORITES_FILE = '_phototiler_favorites.json';
+  const SAVE_FOLDER_MYLISTS_FILE = '_phototiler_mylists.json';
+  const SAVE_FOLDER_SETTINGS_FILE = '_phototiler_settings.json';
+  const SAVE_FOLDER_TAGCACHE_FILE = '_phototiler_tagcache.json';
+  async function writeJsonToSaveFolder(fileName, data){
+    if(!saveDirHandle) return false;
+    try{
+      await writeFileToFolder(fileName, new Blob([JSON.stringify(data)], { type:'application/json' }));
+      return true;
+    }catch(e){ return false; }
+  }
+  async function readJsonFromSaveFolder(fileName){
+    if(!saveDirHandle) return null;
+    try{
+      const file = await readFileFromFolder(fileName);
+      return JSON.parse(await file.text());
+    }catch(e){ return null; }
+  }
+  // On startup, once the save folder reconnects, this pulls its copies of
+  // favorites/My Lists/settings into localStorage *before* anything reads from
+  // localStorage -- so if the browser's storage was ever wiped (or this is a fresh
+  // browser profile pointed at an existing save folder), the folder's copy wins and
+  // everything comes back instead of silently starting empty.
+  async function syncSaveFolderIntoLocalStorage(){
+    if(!saveDirHandle) return;
+    const [favRecs, mylists, settings] = await Promise.all([
+      readJsonFromSaveFolder(SAVE_FOLDER_FAVORITES_FILE),
+      readJsonFromSaveFolder(SAVE_FOLDER_MYLISTS_FILE),
+      readJsonFromSaveFolder(SAVE_FOLDER_SETTINGS_FILE)
+    ]);
+    if(favRecs) try{ localStorage.setItem(LS_FAV_KEY, JSON.stringify(favRecs)); }catch(e){}
+    if(mylists) try{ localStorage.setItem(LS_MYLIST_KEY, JSON.stringify(mylists)); }catch(e){}
+    if(settings) try{ localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(settings)); }catch(e){}
+  }
   function uniqueFileNameFor(name){
     const base = (name || 'image').replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]/g, '_').slice(0, 60) || 'image';
     return `${base}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,7)}.jpg`;
@@ -2364,6 +2967,7 @@
     try{ return JSON.parse(localStorage.getItem(LS_SETTINGS_KEY) || '{}'); }catch(e){ return {}; }
   }
   function saveSettings(settings){
+    writeJsonToSaveFolder(SAVE_FOLDER_SETTINGS_FILE, settings);
     try{ localStorage.setItem(LS_SETTINGS_KEY, JSON.stringify(settings)); return true; }
     catch(e){ return false; }
   }
@@ -2372,6 +2976,7 @@
     if(settings.cropSafetyThreshold!=null) cropSafetyThresholdInput.value = settings.cropSafetyThreshold;
     if(settings.maxSizeRatio!=null) maxSizeRatioInput.value = settings.maxSizeRatio;
     if(settings.danbooruRecheckDays!=null) danbooruRecheckDaysInput.value = settings.danbooruRecheckDays;
+    if(settings.tagCacheDays!=null) tagCacheDaysInput.value = settings.tagCacheDays;
     const showForce = !!settings.showForceRecheckBtn; // default: off
     showForceRecheckBtnChk.checked = showForce;
     slideDbBulkForceBtn.hidden = !showForce;
@@ -2387,12 +2992,54 @@
   const LS_FAV_KEY = 'phototiler_favorites_v1';
   const LS_MYLIST_KEY = 'phototiler_mylists_v1';
   const LS_TEMPLATES_KEY = 'phototiler_templates_v1';
+  const LS_SEARCH_HISTORY_KEY = 'phototiler_search_history_v1';
+  const SEARCH_HISTORY_MAX = 15;
+  function getSearchHistory(){ try{ return JSON.parse(localStorage.getItem(LS_SEARCH_HISTORY_KEY) || '[]'); }catch(e){ return []; } }
+  function saveSearchHistory(list){ try{ localStorage.setItem(LS_SEARCH_HISTORY_KEY, JSON.stringify(list)); }catch(e){} }
+  function recordSearchHistory(userTags, excludeTags){
+    if(!userTags.length) return;
+    const entry = { tags: userTags.join(' '), excludeTags: excludeTags.join(' '), ts: Date.now() };
+    let list = getSearchHistory().filter(h=> !(h.tags===entry.tags && h.excludeTags===entry.excludeTags));
+    list.unshift(entry);
+    if(list.length > SEARCH_HISTORY_MAX) list = list.slice(0, SEARCH_HISTORY_MAX);
+    saveSearchHistory(list);
+    renderSearchHistory();
+  }
+  function renderSearchHistory(){
+    const list = getSearchHistory();
+    slideDanbooruHistoryWrapEl.hidden = !list.length;
+    slideDanbooruHistoryListEl.innerHTML = '';
+    list.forEach(entry=>{
+      const chip = document.createElement('div');
+      chip.className = 'tag-history-chip';
+      const label = document.createElement('span');
+      label.className = 'thc-label';
+      label.textContent = entry.tags.replace(/_/g,' ') + (entry.excludeTags ? ` (除外: ${entry.excludeTags.replace(/_/g,' ')})` : '');
+      label.title = 'クリックしてこの条件で再検索';
+      label.addEventListener('click', ()=>{
+        slideDanbooruTagsInput.value = entry.tags;
+        slideExcludeTagsInput.value = entry.excludeTags || '';
+        searchDanbooruSlide();
+      });
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button'; removeBtn.className = 'thc-remove'; removeBtn.textContent = '×';
+      removeBtn.title = '履歴から削除';
+      removeBtn.addEventListener('click', e=>{
+        e.stopPropagation();
+        saveSearchHistory(getSearchHistory().filter(h=> h.ts !== entry.ts));
+        renderSearchHistory();
+      });
+      chip.appendChild(label); chip.appendChild(removeBtn);
+      slideDanbooruHistoryListEl.appendChild(chip);
+    });
+  }
 
   function serializableRecord(item){
     if(item.isLocal) return null;
     if(item.storedFile){
       const rec = { storedFile: item.storedFile, name: item.name || '', danbooruId: item.danbooruId || null, isLocalOrigin: true };
       if(item.cropRect) rec.cropRect = item.cropRect;
+      if(item.paintStrokes) rec.paintStrokes = item.paintStrokes;
       if(item.isHighQuality) rec.isHighQuality = true;
       if(item.sourceUrl) rec.sourceUrl = item.sourceUrl;
       if(item.note) rec.note = item.note;
@@ -2403,6 +3050,7 @@
     }
     const rec = { url: item.altUrl || item.url, name: item.name || '', danbooruId: item.danbooruId || null, isLocalOrigin: !!item.isLocalOrigin };
     if(item.cropRect) rec.cropRect = item.cropRect;
+      if(item.paintStrokes) rec.paintStrokes = item.paintStrokes;
     if(item.isHighQuality) rec.isHighQuality = true;
     if(item.sourceUrl) rec.sourceUrl = item.sourceUrl;
     if(item.note) rec.note = item.note;
@@ -2414,7 +3062,8 @@
 
   let favorites = [];
   const favMultiSel = { sel: new Set(), anchor: null };
-  let favTagFilter = null; // set via the tag-stats modal's "絞り込む" button; cleared by favTagFilterClearBtn
+  let favTagFilter = []; // array of tags; combined per favTagFilterMode. added via tag-stats/lightbox 🔽 or the edit-mode filter box; cleared by favTagFilterClearBtn
+  let favTagFilterMode = 'AND'; // 'AND' or 'OR' -- toggled via the filter bar's mode button
 
   function matchesItem(a, item){
     if(a.id!=null && item.id!=null && a.id===item.id) return true;
@@ -2430,6 +3079,7 @@
   function isFavoriteItem(item){ return favorites.some(f=> matchesItem(f, item)); }
   function persistFavorites(){
     const recs = favorites.map(serializableRecord).filter(Boolean);
+    writeJsonToSaveFolder(SAVE_FOLDER_FAVORITES_FILE, recs);
     try{ localStorage.setItem(LS_FAV_KEY, JSON.stringify(recs)); return true; }
     catch(e){ return false; }
   }
@@ -2526,22 +3176,35 @@
   }
   function renderFavPool(){
     const opts = favPoolOpts();
-    const displayed = favTagFilter ? favorites.filter(item=> itemHasTag(item, favTagFilter)) : favorites;
+    const displayed = favTagFilter.length ? favorites.filter(item=> itemMatchesTagFilter(item, favTagFilter, favTagFilterMode)) : favorites;
     renderPoolGrid(favPoolGridEl, displayed, opts);
-    if(favPoolCountEl) favPoolCountEl.textContent = favTagFilter ? `${displayed.length}/${favorites.length}` : favorites.length;
-    favTagFilterBarEl.hidden = !favTagFilter;
-    if(favTagFilter) favTagFilterNameEl.textContent = `「${favTagFilter.replace(/_/g,' ')}」`;
+    if(favPoolCountEl) favPoolCountEl.textContent = favTagFilter.length ? `${displayed.length}/${favorites.length}` : favorites.length;
+    favTagFilterBarEl.hidden = !favTagFilter.length;
+    favTagFilterModeBtn.textContent = favTagFilterMode;
+    favTagFilterModeBtn.title = favTagFilterMode==='AND' ? 'クリックでOR(いずれか含む)に切り替え' : 'クリックでAND(全て含む)に切り替え';
+    if(favTagFilter.length) renderTagFilterChips(favTagFilterChipsEl, favTagFilter, tag=>{
+      favTagFilter = favTagFilter.filter(t=> t!==tag);
+      renderFavPool();
+    });
     updateSelBar(favPoolSelBarEl, favPoolSelCountEl, favMultiSel);
     if(editModeKind==='fav'){
       renderPoolGrid(editModeGridEl, displayed, opts);
       updateSelBar(editModeSelBarEl, editModeSelCountEl, favMultiSel);
-      editModeTitleEl.textContent = `お気に入りを編集 (${displayed.length}枚${favTagFilter? `/全${favorites.length}枚`:''})`;
+      editModeTitleEl.textContent = `お気に入りを編集 (${displayed.length}枚${favTagFilter.length? `/全${favorites.length}枚`:''})`;
+      renderTagFilterChips(editModeTagFilterChipsEl, favTagFilter, tag=>{
+        favTagFilter = favTagFilter.filter(t=> t!==tag);
+        renderFavPool();
+      });
+      editModeTagFilterModeBtn.textContent = favTagFilterMode;
     }
     renderComposeImportPools();
   }
 
   function getMyLists(){ try{ return JSON.parse(localStorage.getItem(LS_MYLIST_KEY) || '[]'); }catch(e){ return []; } }
-  function saveMyLists(lists){ try{ localStorage.setItem(LS_MYLIST_KEY, JSON.stringify(lists)); return true; }catch(e){ return false; } }
+  function saveMyLists(lists){
+    writeJsonToSaveFolder(SAVE_FOLDER_MYLISTS_FILE, lists);
+    try{ localStorage.setItem(LS_MYLIST_KEY, JSON.stringify(lists)); return true; }catch(e){ return false; }
+  }
   // Layout templates capture only the tree's shape (splits, directions, ratios) --
   // never the actual images -- so the same composition shape can be reused later
   // with a completely different set of photos.
@@ -3668,6 +4331,8 @@
         if(ovb) img.style.objectViewBox = ovb;
         img.style.objectPosition = `${node.panX!=null? node.panX : 50}% ${node.panY!=null? node.panY : 50}%`;
         el.appendChild(img);
+        const overlay = buildPaintOverlaySvg(node.image);
+        if(overlay) el.appendChild(overlay);
       } else if(editable){
         const label = document.createElement('div');
         label.className = 'empty-label';
@@ -3777,6 +4442,21 @@
         ctx.rect(rect.x, rect.y, rect.w, rect.h);
         ctx.clip();
         ctx.drawImage(img, sx, sy, sw, sh, dx, dy, size.w, size.h);
+        if(imgObj.paintStrokes && imgObj.paintStrokes.length){
+          const cr = cropRectOf(imgObj);
+          ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          imgObj.paintStrokes.forEach(rawStroke=>{
+            const stroke = strokeToCropped(rawStroke, cr);
+            ctx.beginPath();
+            ctx.strokeStyle = stroke.color;
+            ctx.lineWidth = Math.max(1, (stroke.size/100) * size.w);
+            stroke.points.forEach((p,i)=>{
+              const px = dx + p.x*size.w, py = dy + p.y*size.h;
+              if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            });
+            ctx.stroke();
+          });
+        }
         ctx.restore();
       }
       return;
@@ -4175,7 +4855,10 @@
       if(!fileUrl) throw new Error('投稿に画像URLがありません');
       const newObj = await createImageObjectFromUrl(fileUrl, item.name, postId);
       if(item.cropRect) newObj.cropRect = item.cropRect;
+      if(item.paintStrokes) newObj.paintStrokes = item.paintStrokes;
       if(item.isHighQuality) newObj.isHighQuality = item.isHighQuality;
+      if(item.note) newObj.note = item.note;
+      if(item.userTags && item.userTags.length) newObj.userTags = item.userTags;
       const pool = getPool();
       const idx = pool.indexOf(item);
       if(idx!==-1){
@@ -4219,7 +4902,8 @@
   }
 
   const slideMultiSel = { sel: new Set(), anchor: null };
-  let slideTagFilter = null; // set via the tag-stats modal's "絞り込む" button; cleared by slideTagFilterClearBtn
+  let slideTagFilter = []; // array of tags; combined per slideTagFilterMode. added via tag-stats/lightbox 🔽 or the edit-mode filter box; cleared by slideTagFilterClearBtn
+  let slideTagFilterMode = 'AND'; // 'AND' or 'OR' -- toggled via the filter bar's mode button
   function slidePoolOpts(){
     return {
       selectedId: null,
@@ -4245,16 +4929,26 @@
   }
   function renderSlidePool(){
     const opts = slidePoolOpts();
-    const displayed = slideTagFilter ? slidePool.filter(item=> itemHasTag(item, slideTagFilter)) : slidePool;
+    const displayed = slideTagFilter.length ? slidePool.filter(item=> itemMatchesTagFilter(item, slideTagFilter, slideTagFilterMode)) : slidePool;
     renderPoolGrid(slidePoolGridEl, displayed, opts);
-    if(slidePoolCountEl) slidePoolCountEl.textContent = slideTagFilter ? `${displayed.length}/${slidePool.length}` : slidePool.length;
-    slideTagFilterBarEl.hidden = !slideTagFilter;
-    if(slideTagFilter) slideTagFilterNameEl.textContent = `「${slideTagFilter.replace(/_/g,' ')}」`;
+    if(slidePoolCountEl) slidePoolCountEl.textContent = slideTagFilter.length ? `${displayed.length}/${slidePool.length}` : slidePool.length;
+    slideTagFilterBarEl.hidden = !slideTagFilter.length;
+    slideTagFilterModeBtn.textContent = slideTagFilterMode;
+    slideTagFilterModeBtn.title = slideTagFilterMode==='AND' ? 'クリックでOR(いずれか含む)に切り替え' : 'クリックでAND(全て含む)に切り替え';
+    if(slideTagFilter.length) renderTagFilterChips(slideTagFilterChipsEl, slideTagFilter, tag=>{
+      slideTagFilter = slideTagFilter.filter(t=> t!==tag);
+      renderSlidePool();
+    });
     updateSelBar(slidePoolSelBarEl, slidePoolSelCountEl, slideMultiSel);
     if(editModeKind==='slide'){
       renderPoolGrid(editModeGridEl, displayed, opts);
       updateSelBar(editModeSelBarEl, editModeSelCountEl, slideMultiSel);
-      editModeTitleEl.textContent = `プールを編集 (${displayed.length}枚${slideTagFilter? `/全${slidePool.length}枚`:''})`;
+      editModeTitleEl.textContent = `プールを編集 (${displayed.length}枚${slideTagFilter.length? `/全${slidePool.length}枚`:''})`;
+      renderTagFilterChips(editModeTagFilterChipsEl, slideTagFilter, tag=>{
+        slideTagFilter = slideTagFilter.filter(t=> t!==tag);
+        renderSlidePool();
+      });
+      editModeTagFilterModeBtn.textContent = slideTagFilterMode;
     }
     renderComposeImportPools();
   }
@@ -4661,6 +5355,11 @@
     };
     push([...userTags, orderTag, ...excludeTags]);
     if(excludeTags.length) push([...userTags, orderTag]);
+    // Keeping every content tag together (dropping only order/random) preserves the
+    // actual search intent -- especially for a 2-tag co-occurrence search, where
+    // dropping order:random still fits Danbooru's tag-count limit and is far better
+    // than silently degrading to a single-tag search by dropping a content tag.
+    if(userTags.length > 1) push([...userTags]);
     if(userTags.length > 1) push([userTags[0], orderTag]);
     if(orderTag) push([userTags[0]]);
     return attempts;
@@ -4696,6 +5395,8 @@
   // Search results land here first instead of going straight into slidePool, so they can be
   // reviewed (and unwanted ones removed) in the edit-mode modal before being committed.
   let danbooruStagingPool = [];
+  let reviewTagFilter = [];
+  let reviewTagFilterMode = 'AND';
   const danbooruStagingMultiSel = { sel: new Set(), anchor: null };
   // The "確認画面" (editModeKind==='danbooruReview') is used for two things: reviewing
   // Danbooru search results (always destined for slidePool) and previewing a My List's
@@ -4732,9 +5433,15 @@
   }
   function renderDanbooruStaging(){
     if(editModeKind!=='danbooruReview') return;
-    renderPoolGrid(editModeGridEl, danbooruStagingPool, danbooruStagingOpts());
+    const displayed = reviewTagFilter.length ? danbooruStagingPool.filter(item=> itemMatchesTagFilter(item, reviewTagFilter, reviewTagFilterMode)) : danbooruStagingPool;
+    renderPoolGrid(editModeGridEl, displayed, danbooruStagingOpts());
     updateSelBar(editModeSelBarEl, editModeSelCountEl, danbooruStagingMultiSel);
     updateDanbooruReviewTitle();
+    renderTagFilterChips(editModeTagFilterChipsEl, reviewTagFilter, tag=>{
+      reviewTagFilter = reviewTagFilter.filter(t=> t!==tag);
+      renderDanbooruStaging();
+    });
+    editModeTagFilterModeBtn.textContent = reviewTagFilterMode;
   }
   // Single place that updates the search status text -- keeps the small hint under the
   // search button, the status line at the top of the edit-mode review screen, and (while
@@ -4771,6 +5478,8 @@
       danbooruStagingMultiSel.sel.clear();
     }
     stagingTarget = slidePoolStagingTarget;
+    reviewTagFilter = [];
+    reviewTagFilterMode = 'AND';
     openEditMode('danbooruReview');
     const stagedIds = new Set(danbooruStagingPool.map(p=> p.danbooruId));
     let added = 0;
@@ -4803,17 +5512,27 @@
         .filter(p=> p.fileUrl && IMAGE_EXT.has((p.fileUrl.split('.').pop()||'').toLowerCase().split('?')[0]))
         .filter(p=> !seenDanbooruIds.has(p.id) && !stagedIds.has(p.id) && !(extraExcludeIds && extraExcludeIds.has(p.id)));
       if(found.length){
-        const results = await Promise.allSettled(found.map(p=>
-          createImageObjectFromUrl(p.fileUrl, `danbooru #${p.id}`, p.id).then(o=> ({p,o}))
-        ));
-        results.forEach(r=>{
-          if(r.status==='fulfilled'){
-            stagedIds.add(r.value.p.id);
-            danbooruStagingPool.push(r.value.o);
-            added++;
-          }
-        });
-        renderDanbooruStaging();
+        // Loading all of a page's images (up to DANBOORU_PAGE_LIMIT=200) at once and only
+        // rendering after every single one settles left the screen showing nothing new for
+        // a long stretch -- especially on a slow connection, this reads as the app having
+        // frozen. Small batches with a render after each one keep visible progress flowing
+        // throughout instead of one long silent wait.
+        const SEARCH_RENDER_BATCH = 8;
+        for(let bi=0; bi<found.length; bi+=SEARCH_RENDER_BATCH){
+          const chunk = found.slice(bi, bi+SEARCH_RENDER_BATCH);
+          const results = await Promise.allSettled(chunk.map(p=>
+            createImageObjectFromUrl(p.fileUrl, `danbooru #${p.id}`, p.id).then(o=> ({p,o}))
+          ));
+          results.forEach(r=>{
+            if(r.status==='fulfilled'){
+              stagedIds.add(r.value.p.id);
+              danbooruStagingPool.push(r.value.o);
+              added++;
+            }
+          });
+          renderDanbooruStaging();
+          setDanbooruStatus(`取得中… ${added}件追加済み(ページ${page}・検索条件: ${tags || '(タグなし)'})`);
+        }
       }
       if(posts.length < limit) break; // Danbooru returned fewer than asked -> no more pages
       setDanbooruStatus(`取得中… ${fetchedRaw}/${count}件(ページ${page}・検索条件: ${tags || '(タグなし)'})`);
@@ -4860,6 +5579,7 @@
       // drops the least-essential parts (exclude tags, then the 2nd search tag) and retries,
       // so the order the user actually chose still gets used instead of just failing outright.
       const tagAttempts = buildDanbooruTagAttempts(userTags, excludeTags, orderTag);
+      recordSearchHistory(userTags, excludeTags);
       await runDanbooruSearch(tagAttempts, count);
     } catch(err){
       setDanbooruStatus(`ネットワークエラーで検索できませんでした(CORSブロックや通信環境による制限の可能性があります)。`);
@@ -4875,16 +5595,17 @@
   // images they've already seen/kept. Shares the same review/confirm staging screen as a
   // normal tag search (runDanbooruSearch), just with a different starting tag and an extra
   // exclude list.
-  async function findRecommendationsForTag(tag){
+  async function findRecommendationsForTags(tags){
     if(danbooruSlideSearchRunning){ showToast('他の検索が実行中です。完了してからお試しください', 'error'); return; }
     danbooruSlideSearchRunning = true;
     slideDanbooruBtn.disabled = true;
-    setDanbooruStatus(`「${tag.replace(/_/g,' ')}」に似た画像を探しています…`);
+    const label = tags.map(t=> t.replace(/_/g,' ')).join(' + ');
+    setDanbooruStatus(`「${label}」に似た画像を探しています…`);
     try{
       const excludeIds = new Set();
       favorites.forEach(f=> f.danbooruId && excludeIds.add(f.danbooruId));
       slidePool.forEach(f=> f.danbooruId && excludeIds.add(f.danbooruId));
-      const tagAttempts = buildDanbooruTagAttempts([tag], [], 'order:random');
+      const tagAttempts = buildDanbooruTagAttempts(tags, [], 'order:random');
       await runDanbooruSearch(tagAttempts, 60, { excludeIds });
     }catch(err){
       setDanbooruStatus('おすすめ検索でエラーが発生しました(CORSブロックや通信環境による制限の可能性があります)。');
@@ -4893,6 +5614,7 @@
       danbooruSlideSearchRunning = false;
     }
   }
+  async function findRecommendationsForTag(tag){ return findRecommendationsForTags([tag]); }
 
   // Remembers the last few tags used for a one-click "おまかせ" recommendation, so repeated
   // clicks explore different tags instead of circling back to the single most-favorited one
@@ -5021,7 +5743,7 @@
   /* ================================================================
      mode switching
      ================================================================ */
-  let currentMode = 'compose';
+  let currentMode = 'slideshow';
   function setMode(mode){
     currentMode = mode;
     document.querySelectorAll('.tab').forEach(t=> t.classList.toggle('active', t.dataset.mode===mode));
@@ -5041,6 +5763,36 @@
      wiring
      ================================================================ */
   const stageEl = document.getElementById('stage');
+  // Pool grids (favorites, image pool, etc.) each have their own small scrollable
+  // area for long lists. Left to the browser's default nested-scroll behavior, a
+  // mouse wheel over one of these captures the scroll and works through that
+  // grid's own (often long) content before handing off to the sidebar, making the
+  // whole sidebar feel "stuck" as you scroll down past several of these in a row.
+  // Forwarding wheel input on these grids to the sidebar instead keeps scrolling
+  // the sidebar continuous; the grid's own scrollbar can still be dragged directly.
+  const sidebarEl = document.getElementById('sidebar');
+  sidebarEl.addEventListener('wheel', e=>{
+    if(!e.target.closest('.pool-grid')) return;
+    e.preventDefault();
+    sidebarEl.scrollTop += e.deltaY;
+  }, { passive:false });
+
+  /* ---- mobile sidebar drawer ---- */
+  const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+  const sidebarBackdropEl = document.getElementById('sidebarBackdrop');
+  function openMobileSidebar(){ sidebarEl.classList.add('mobile-open'); sidebarBackdropEl.classList.add('show'); }
+  function closeMobileSidebar(){ sidebarEl.classList.remove('mobile-open'); sidebarBackdropEl.classList.remove('show'); }
+  sidebarToggleBtn.addEventListener('click', ()=>{
+    sidebarEl.classList.contains('mobile-open') ? closeMobileSidebar() : openMobileSidebar();
+  });
+  sidebarBackdropEl.addEventListener('click', closeMobileSidebar);
+  // Starting the slideshow (or entering preview) is the point where a phone user
+  // wants the sidebar out of the way and the stage front and center -- close the
+  // drawer automatically rather than leaving it for the user to dismiss by hand.
+  document.addEventListener('click', e=>{
+    if(e.target.closest('#previewBtn') || e.target.closest('.tab')) closeMobileSidebar();
+  });
+
   const stageWrapEl = document.getElementById('stageWrap');
   const toastEl = document.getElementById('toast');
 
@@ -5105,6 +5857,8 @@
   const slideDanbooruOrderInput = document.getElementById('slideDanbooruOrder');
   const slideDanbooruBtn = document.getElementById('slideDanbooruBtn');
   const slideDanbooruStatus = document.getElementById('slideDanbooruStatus');
+  const slideDanbooruHistoryWrapEl = document.getElementById('slideDanbooruHistoryWrap');
+  const slideDanbooruHistoryListEl = document.getElementById('slideDanbooruHistoryList');
   const slidePoolClearBtn = document.getElementById('slidePoolClearBtn');
   const slideDbBulkSearchBtn = document.getElementById('slideDbBulkSearchBtn');
   const slideDbBulkForceBtn = document.getElementById('slideDbBulkForceBtn');
@@ -5115,6 +5869,7 @@
   const maxSizeRatioInput = document.getElementById('maxSizeRatio');
   const danbooruRecheckDaysInput = document.getElementById('danbooruRecheckDaysInput');
   const showForceRecheckBtnChk = document.getElementById('showForceRecheckBtnChk');
+  const tagCacheDaysInput = document.getElementById('tagCacheDaysInput');
   const noRepeatChk = document.getElementById('noRepeatChk');
   const autoResetChk = document.getElementById('autoResetChk');
   const slideStartBtn = document.getElementById('slideStartBtn');
@@ -5126,7 +5881,8 @@
   const slidePoolSelDbSearchBtn = document.getElementById('slidePoolSelDbSearchBtn');
   const slidePoolSelClearBtn = document.getElementById('slidePoolSelClearBtn');
   const slideTagFilterBarEl = document.getElementById('slideTagFilterBar');
-  const slideTagFilterNameEl = document.getElementById('slideTagFilterName');
+  const slideTagFilterChipsEl = document.getElementById('slideTagFilterChips');
+  const slideTagFilterModeBtn = document.getElementById('slideTagFilterModeBtn');
   const slideTagFilterClearBtn = document.getElementById('slideTagFilterClearBtn');
   const favOnlyChk = document.getElementById('favOnlyChk');
 
@@ -5140,7 +5896,8 @@
   const favPoolGridEl = document.getElementById('favPoolGrid');
   const favPoolCountEl = document.getElementById('favPoolCount');
   const favTagFilterBarEl = document.getElementById('favTagFilterBar');
-  const favTagFilterNameEl = document.getElementById('favTagFilterName');
+  const favTagFilterChipsEl = document.getElementById('favTagFilterChips');
+  const favTagFilterModeBtn = document.getElementById('favTagFilterModeBtn');
   const favTagFilterClearBtn = document.getElementById('favTagFilterClearBtn');
   const favPoolSelBarEl = document.getElementById('favPoolSelBar');
   const favPoolSelCountEl = document.getElementById('favPoolSelCount');
@@ -5166,25 +5923,39 @@
 
   const lightboxEl = document.getElementById('lightbox');
   const lightboxImgEl = document.getElementById('lightboxImg');
+  const lightboxPaintOverlayEl = document.getElementById('lightboxPaintOverlay');
   const lightboxPanelEl = document.getElementById('lightboxPanel');
   const lightboxCloseBtn = document.getElementById('lightboxClose');
   const lightboxPrevBtn = document.getElementById('lightboxPrev');
   const lightboxNextBtn = document.getElementById('lightboxNext');
-  const lightboxMenuBtn = document.getElementById('lightboxMenuBtn');
-  const lightboxMenuPanel = document.getElementById('lightboxMenuPanel');
   const lightboxFavBtn = document.getElementById('lightboxFavBtn');
   const lightboxCropBtn = document.getElementById('lightboxCropBtn');
-  const lightboxCropResetBtn = document.getElementById('lightboxCropResetBtn');
+  const lightboxPaintBtn = document.getElementById('lightboxPaintBtn');
   const lightboxHqBtn = document.getElementById('lightboxHqBtn');
-  const lightboxLqBtn = document.getElementById('lightboxLqBtn');
 
   const cropModalEl = document.getElementById('cropModal');
   const cropStageEl = document.getElementById('cropStage');
   const cropImgEl = document.getElementById('cropImg');
   const cropRectEl = document.getElementById('cropRect');
   const cropFullBtn = document.getElementById('cropFullBtn');
+  const cropResetBtn = document.getElementById('cropResetBtn');
   const cropApplyBtn = document.getElementById('cropApplyBtn');
   const cropCancelBtn = document.getElementById('cropCancelBtn');
+
+  const paintModalEl = document.getElementById('paintModal');
+  const paintImgEl = document.getElementById('paintImg');
+  const paintSvgEl = document.getElementById('paintSvg');
+  const paintCursorPreviewEl = document.getElementById('paintCursorPreview');
+  const paintPresetsEl = document.getElementById('paintPresets');
+  const paintSizeSlider = document.getElementById('paintSizeSlider');
+  const paintColorPicker = document.getElementById('paintColorPicker');
+  const paintRInput = document.getElementById('paintR');
+  const paintGInput = document.getElementById('paintG');
+  const paintBInput = document.getElementById('paintB');
+  const paintUndoBtn = document.getElementById('paintUndoBtn');
+  const paintClearBtn = document.getElementById('paintClearBtn');
+  const paintApplyBtn = document.getElementById('paintApplyBtn');
+  const paintCancelBtn = document.getElementById('paintCancelBtn');
 
   const editModeModalEl = document.getElementById('editModeModal');
   const editModeTitleEl = document.getElementById('editModeTitle');
@@ -5196,6 +5967,11 @@
   const editModeSelClearBtn = document.getElementById('editModeSelClearBtn');
   const editModeSelDbSearchBtn = document.getElementById('editModeSelDbSearchBtn');
   const editModeConfirmRow = document.getElementById('editModeConfirmRow');
+  const editModeTagFilterWrapEl = document.getElementById('editModeTagFilterWrap');
+  const editModeTagFilterInput = document.getElementById('editModeTagFilterInput');
+  const editModeTagFilterSuggest = document.getElementById('editModeTagFilterSuggest');
+  const editModeTagFilterChipsEl = document.getElementById('editModeTagFilterChips');
+  const editModeTagFilterModeBtn = document.getElementById('editModeTagFilterModeBtn');
   const editModeConfirmAddBtn = document.getElementById('editModeConfirmAddBtn');
   const editModeConfirmAddSelectedBtn = document.getElementById('editModeConfirmAddSelectedBtn');
   const editModeDiscardBtn = document.getElementById('editModeDiscardBtn');
@@ -5211,6 +5987,11 @@
   const tagStatsListEl = document.getElementById('tagStatsList');
   const tagStatsCatNavEl = document.getElementById('tagStatsCatNav');
   const tagStatsCloseBtn = document.getElementById('tagStatsCloseBtn');
+  const prefReportModalEl = document.getElementById('prefReportModal');
+  const prefReportStatusEl = document.getElementById('prefReportStatus');
+  const prefReportBodyEl = document.getElementById('prefReportBody');
+  const prefReportCloseBtn = document.getElementById('prefReportCloseBtn');
+  const favPrefReportBtn = document.getElementById('favPrefReportBtn');
 
 
   const previewBtn = document.getElementById('previewBtn');
@@ -5436,6 +6217,34 @@
   });
 
   attachTagAutocomplete(slideDanbooruTagsInput, slideTagSuggestEl);
+  attachTagFilterAutocomplete(editModeTagFilterInput, editModeTagFilterSuggest, async tag=>{
+    if(!tag) return; // empty Enter is now a no-op -- use the ✕ on a chip, or the section's "✕ 全解除", to remove conditions
+    if(editModeKind==='fav'){
+      if(!favTagFilter.includes(tag)) favTagFilter = [...favTagFilter, tag];
+      renderFavPool();
+    } else if(editModeKind==='slide'){
+      if(!slideTagFilter.includes(tag)) slideTagFilter = [...slideTagFilter, tag];
+      renderSlidePool();
+    } else if(editModeKind==='danbooruReview'){
+      if(!reviewTagFilter.includes(tag)){
+        // Staging results are fresh from search and likely not yet tag-cached --
+        // fetch (and cache) them now so the filter has something to check against.
+        const uncached = danbooruStagingPool.filter(item=> item.danbooruId && !isTagCacheFresh(item.danbooruId));
+        if(uncached.length){
+          showToast(`絞り込みのため${uncached.length}件のタグ情報を取得中…`);
+          await computeTagCounts(danbooruStagingPool);
+        }
+        reviewTagFilter = [...reviewTagFilter, tag];
+      }
+      renderDanbooruStaging();
+    }
+    editModeTagFilterInput.value = '';
+  });
+  editModeTagFilterModeBtn.addEventListener('click', ()=>{
+    if(editModeKind==='fav'){ favTagFilterMode = favTagFilterMode==='AND'?'OR':'AND'; renderFavPool(); }
+    else if(editModeKind==='slide'){ slideTagFilterMode = slideTagFilterMode==='AND'?'OR':'AND'; renderSlidePool(); }
+    else if(editModeKind==='danbooruReview'){ reviewTagFilterMode = reviewTagFilterMode==='AND'?'OR':'AND'; renderDanbooruStaging(); }
+  });
   slideDanbooruBtn.addEventListener('click', searchDanbooruSlide);
   slideDanbooruTagsInput.addEventListener('keydown', e=>{
     if(e.key!=='Enter' || e.isComposing || e.keyCode===229) return;
@@ -5476,6 +6285,13 @@
     saveSettings(settings);
     slideDbBulkForceBtn.hidden = !settings.showForceRecheckBtn;
     favDbBulkForceBtn.hidden = !settings.showForceRecheckBtn;
+  });
+
+  tagCacheDaysInput.addEventListener('change', ()=>{
+    const settings = loadSettings();
+    settings.tagCacheDays = clamp(parseFloat(tagCacheDaysInput.value)||30, 1, 3650);
+    tagCacheDaysInput.value = settings.tagCacheDays;
+    saveSettings(settings);
   });
 
   slidePoolClearBtn.addEventListener('click', ()=>{
@@ -5612,38 +6428,21 @@
   lightboxCloseBtn.addEventListener('click', closeLightbox);
   lightboxPrevBtn.addEventListener('click', ()=> navigateLightbox(-1));
 
-  lightboxMenuBtn.addEventListener('click', e=>{
-    e.stopPropagation();
-    lightboxMenuPanel.hidden = !lightboxMenuPanel.hidden;
-  });
-  document.addEventListener('click', e=>{
-    if(!lightboxMenuPanel.hidden && !lightboxMenuPanel.contains(e.target) && e.target!==lightboxMenuBtn){
-      lightboxMenuPanel.hidden = true;
-    }
-  });
   lightboxCropBtn.addEventListener('click', ()=>{
-    lightboxMenuPanel.hidden = true;
     if(!lbCurrentItem) return;
     openCropTool(lbCurrentItem);
   });
-  lightboxCropResetBtn.addEventListener('click', ()=>{
-    lightboxMenuPanel.hidden = true;
+  lightboxPaintBtn.addEventListener('click', ()=>{
     if(!lbCurrentItem) return;
-    resetCrop(lbCurrentItem);
+    openPaintTool(lbCurrentItem);
   });
   lightboxHqBtn.addEventListener('click', async ()=>{
-    lightboxMenuPanel.hidden = true;
     if(!lbCurrentItem) return;
     lightboxHqBtn.disabled = true;
-    await upgradeToHighQuality(lbCurrentItem);
+    if(lbCurrentItem.isHighQuality) await revertToLightQuality(lbCurrentItem);
+    else await upgradeToHighQuality(lbCurrentItem);
+    updateLightboxHqBtn(lbCurrentItem);
     lightboxHqBtn.disabled = false;
-  });
-  lightboxLqBtn.addEventListener('click', async ()=>{
-    lightboxMenuPanel.hidden = true;
-    if(!lbCurrentItem) return;
-    lightboxLqBtn.disabled = true;
-    await revertToLightQuality(lbCurrentItem);
-    lightboxLqBtn.disabled = false;
   });
   cropRectEl.addEventListener('mousedown', e=>{
     const handle = e.target.closest('.crop-handle');
@@ -5678,6 +6477,11 @@
     document.querySelectorAll('.reorder-indicator').forEach(el=> el.style.display = 'none');
   });
   cropFullBtn.addEventListener('click', ()=> setCropRectNormalized({ x:0, y:0, w:1, h:1 }));
+  cropResetBtn.addEventListener('click', ()=>{
+    if(!cropTargetItem) return;
+    resetCrop(cropTargetItem);
+    closeCropTool();
+  });
   cropCancelBtn.addEventListener('click', closeCropTool);
   cropApplyBtn.addEventListener('click', ()=>{
     if(!cropTargetItem) return;
@@ -5686,6 +6490,104 @@
   });
   document.addEventListener('keydown', e=>{
     if(e.key==='Escape' && cropModalEl.classList.contains('show')) closeCropTool();
+  });
+
+  /* ---- paint tool ---- */
+  function hexToRgb(hex){
+    const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+    return m ? { r:parseInt(m[1],16), g:parseInt(m[2],16), b:parseInt(m[3],16) } : { r:0, g:0, b:0 };
+  }
+  function rgbToHex(r,g,b){
+    return '#' + [r,g,b].map(v=> clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('');
+  }
+  function setPaintColor(hex){
+    paintColor = hex;
+    paintColorPicker.value = hex;
+    const { r,g,b } = hexToRgb(hex);
+    paintRInput.value = r; paintGInput.value = g; paintBInput.value = b;
+    paintPresetsEl.querySelectorAll('.paint-preset-swatch').forEach(sw=>{
+      sw.classList.toggle('active', sw.dataset.color.toLowerCase()===hex.toLowerCase());
+    });
+  }
+  // A handful of commonly-needed colors (black/white for censoring or blocking out
+  // text, plus a few background-ish tones) so the common case doesn't need the color
+  // picker or typing RGB values every time.
+  const PAINT_PRESETS = ['#000000','#ffffff','#808080','#c0392b','#f5deb3','#8b5a2b'];
+  PAINT_PRESETS.forEach(hex=>{
+    const sw = document.createElement('button');
+    sw.type = 'button'; sw.className = 'paint-preset-swatch'; sw.dataset.color = hex;
+    sw.style.background = hex; sw.title = hex;
+    sw.addEventListener('click', ()=> setPaintColor(hex));
+    paintPresetsEl.appendChild(sw);
+  });
+  setPaintColor('#000000');
+  paintColorPicker.addEventListener('input', ()=> setPaintColor(paintColorPicker.value));
+  [paintRInput, paintGInput, paintBInput].forEach(inp=>{
+    inp.addEventListener('input', ()=>{
+      inp.value = clamp(Math.round(parseFloat(inp.value)||0), 0, 255);
+      setPaintColor(rgbToHex(parseFloat(paintRInput.value)||0, parseFloat(paintGInput.value)||0, parseFloat(paintBInput.value)||0));
+    });
+  });
+  // Brush-size cursor preview: a circle that follows the pointer over the editor,
+  // sized to match the current brush -- so the brush size can be judged before the
+  // first stroke instead of only after.
+  function updatePaintCursorPreview(e){
+    const box = paintImgEl.getBoundingClientRect();
+    const t = e.touches && e.touches[0];
+    const clientX = t ? t.clientX : e.clientX, clientY = t ? t.clientY : e.clientY;
+    const sizePct = parseFloat(paintSizeSlider.value)||6;
+    const px = sizePct/100 * box.width;
+    paintCursorPreviewEl.style.display = 'block';
+    paintCursorPreviewEl.style.left = (clientX - box.left) + 'px';
+    paintCursorPreviewEl.style.top = (clientY - box.top) + 'px';
+    paintCursorPreviewEl.style.width = px + 'px';
+    paintCursorPreviewEl.style.height = px + 'px';
+  }
+  paintSvgEl.addEventListener('mousemove', updatePaintCursorPreview);
+  paintSvgEl.addEventListener('mouseleave', ()=>{ paintCursorPreviewEl.style.display = 'none'; });
+  paintSizeSlider.addEventListener('input', ()=>{ if(paintCursorPreviewEl.style.display==='block') paintCursorPreviewEl.style.width = paintCursorPreviewEl.style.height = (parseFloat(paintSizeSlider.value)/100*paintImgEl.getBoundingClientRect().width)+'px'; });
+  let paintDrawing = false;
+  function paintPointerDown(e){
+    e.preventDefault();
+    paintDrawing = true;
+    const size = parseFloat(paintSizeSlider.value)||6;
+    paintCurrentStroke = { color: paintColor, size, points: [paintEventPoint(e)] };
+    renderPaintEditorSvg();
+  }
+  function paintPointerMove(e){
+    if(!paintDrawing || !paintCurrentStroke) return;
+    e.preventDefault();
+    paintCurrentStroke.points.push(paintEventPoint(e));
+    renderPaintEditorSvg();
+  }
+  function paintPointerUp(){
+    if(!paintDrawing) return;
+    paintDrawing = false;
+    if(paintCurrentStroke && paintCurrentStroke.points.length){
+      // A single tap (no movement) makes a stroke with just one point -- a polyline
+      // with only one point draws nothing, so duplicate it into a tiny dot instead.
+      if(paintCurrentStroke.points.length===1) paintCurrentStroke.points.push({ ...paintCurrentStroke.points[0] });
+      paintWorkingStrokes.push(paintCurrentStroke);
+    }
+    paintCurrentStroke = null;
+    renderPaintEditorSvg();
+  }
+  paintSvgEl.addEventListener('mousedown', paintPointerDown);
+  paintSvgEl.addEventListener('mousemove', paintPointerMove);
+  window.addEventListener('mouseup', paintPointerUp);
+  paintSvgEl.addEventListener('touchstart', paintPointerDown, { passive:false });
+  paintSvgEl.addEventListener('touchmove', paintPointerMove, { passive:false });
+  paintSvgEl.addEventListener('touchend', paintPointerUp);
+  paintUndoBtn.addEventListener('click', ()=>{ paintWorkingStrokes.pop(); renderPaintEditorSvg(); });
+  paintClearBtn.addEventListener('click', ()=>{ paintWorkingStrokes = []; renderPaintEditorSvg(); });
+  paintCancelBtn.addEventListener('click', closePaintTool);
+  paintApplyBtn.addEventListener('click', ()=>{
+    if(!paintTargetItem) return;
+    applyPaint(paintTargetItem, paintWorkingStrokes);
+    closePaintTool();
+  });
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Escape' && paintModalEl.classList.contains('show')) closePaintTool();
   });
 
   lightboxNextBtn.addEventListener('click', ()=> navigateLightbox(1));
@@ -5708,6 +6610,8 @@
     editModeTitleEl.textContent = EDIT_MODE_TITLES[kind] || '編集モード';
     editModeSelDbSearchBtn.hidden = (kind !== 'slide' && kind !== 'fav');
     editModeConfirmRow.hidden = (kind !== 'danbooruReview');
+    editModeTagFilterWrapEl.hidden = (kind !== 'slide' && kind !== 'fav' && kind !== 'danbooruReview');
+    editModeTagFilterInput.value = '';
     editModeModalEl.classList.add('show');
     if(kind==='slide') renderSlidePool();
     else if(kind==='fav') renderFavPool();
@@ -5731,23 +6635,27 @@
   slidePoolTagStatsBtn.addEventListener('click', e=>{
     e.stopPropagation();
     showTagStats(slidePool, 'プール', tag=>{
-      slideTagFilter = tag;
+      if(!slideTagFilter.includes(tag)) slideTagFilter = [...slideTagFilter, tag];
       renderSlidePool();
-      showToast(`「${tag.replace(/_/g,' ')}」でプールを絞り込みました`);
+      showToast(`「${tag.replace(/_/g,' ')}」を絞り込み条件に追加しました(現在${slideTagFilter.length}件の条件)`);
     }, { recommend:true });
   });
   favPoolTagStatsBtn.addEventListener('click', e=>{
     e.stopPropagation();
     showTagStats(favorites, 'お気に入り', tag=>{
-      favTagFilter = tag;
+      if(!favTagFilter.includes(tag)) favTagFilter = [...favTagFilter, tag];
       renderFavPool();
-      showToast(`「${tag.replace(/_/g,' ')}」でお気に入りを絞り込みました`);
+      showToast(`「${tag.replace(/_/g,' ')}」を絞り込み条件に追加しました(現在${favTagFilter.length}件の条件)`);
     }, { recommend:true });
   });
   favRecommendAutoBtn.addEventListener('click', e=>{ e.stopPropagation(); recommendOneClick(); });
-  slideTagFilterClearBtn.addEventListener('click', ()=>{ slideTagFilter = null; renderSlidePool(); });
-  favTagFilterClearBtn.addEventListener('click', ()=>{ favTagFilter = null; renderFavPool(); });
+  slideTagFilterClearBtn.addEventListener('click', ()=>{ slideTagFilter = []; renderSlidePool(); });
+  favTagFilterClearBtn.addEventListener('click', ()=>{ favTagFilter = []; renderFavPool(); });
+  slideTagFilterModeBtn.addEventListener('click', ()=>{ slideTagFilterMode = slideTagFilterMode==='AND' ? 'OR' : 'AND'; renderSlidePool(); });
+  favTagFilterModeBtn.addEventListener('click', ()=>{ favTagFilterMode = favTagFilterMode==='AND' ? 'OR' : 'AND'; renderFavPool(); });
   tagStatsCloseBtn.addEventListener('click', closeTagStats);
+  prefReportCloseBtn.addEventListener('click', ()=>{ prefReportModalEl.classList.remove('show'); prefReportToken++; });
+  favPrefReportBtn.addEventListener('click', e=>{ e.stopPropagation(); showPreferenceReport(); });
   editModeCloseBtn.addEventListener('click', closeEditMode);
   editModeSelDeleteBtn.addEventListener('click', ()=>{
     if(editModeKind==='slide'){ slidePoolSelDeleteBtn.click(); }
@@ -5797,6 +6705,7 @@
   document.addEventListener('keydown', e=>{
     if(e.key==='Escape' && editModeModalEl.classList.contains('show')) closeEditMode();
     if(e.key==='Escape' && tagStatsModalEl.classList.contains('show')) closeTagStats();
+    if(e.key==='Escape' && prefReportModalEl.classList.contains('show')){ prefReportModalEl.classList.remove('show'); prefReportToken++; }
   });
 
   /* ---- collapsible sidebar sections ----
@@ -5945,10 +6854,21 @@
   renderExcludePool();
   renderAllMylistViews();
   renderLayoutTemplates();
+  renderSearchHistory();
   updateSlideButtons();
   updateSaveDirUI();
+  setMode('slideshow');
   (async ()=>{
     await reconnectSaveFolderSilently(); // must resolve before loading records that may reference saved files
+    // If a save folder is connected, its copies of favorites/My Lists/settings/tag
+    // cache are the more durable source (survive the browser's storage being
+    // cleared) -- pull them in before the normal localStorage-based load below, and
+    // refresh the settings/My-List views that were already drawn from (possibly
+    // stale or empty) localStorage moments ago.
+    await syncSaveFolderIntoLocalStorage();
+    await loadTagCacheFromSaveFolder();
+    applySettingsToUI(loadSettings());
+    renderAllMylistViews();
     await loadFavoritesFromStorage();
   })();
   loadExcludeFromStorage();
