@@ -649,13 +649,27 @@
     #sidebarBackdrop.show{ display:block; }
     #stageWrap{ width:100%; }
 
+    /* iOS Safari auto-zooms the whole page in when a focused text input's font-size
+       is under 16px, and doesn't reliably zoom back out afterward -- this is very
+       likely why search results can look slightly enlarged and why the top bar can
+       seem to disappear (it's just scrolled out of the zoomed-in viewport) after
+       typing into a search/filter box. Keeping every input at >=16px on mobile
+       avoids triggering that zoom in the first place. */
+    input[type=text], input[type=number], input[type=color], textarea, select{ font-size:16px; }
+
     /* Modals: fixed pixel widths meant for desktop overflow a phone screen entirely. */
     .settings-modal-inner, .crop-modal-inner{ width:94vw; max-height:94vh; padding:14px 16px; }
-    .lightbox-inner{ max-width:98vw; max-height:94vh; flex-direction:column; }
+    .lightbox-inner{ max-width:98vw; max-height:94vh; flex-direction:column; min-height:0; }
     .lightbox-img-wrap{ max-width:100%; }
     .lightbox-img-wrap img{ max-width:100%; max-height:40vh; }
-    .lightbox-panel-outer{ width:100%; flex:1 1 auto; }
-    .lightbox-menu-wrap{ position:absolute; top:8px; right:8px; }
+    /* flex:1 1 auto alone still lets this item grow past the lightbox's max-height
+       instead of triggering .lightbox-panel's own overflow-y:auto -- min-height:0
+       is what actually allows a flex item to shrink and scroll internally. */
+    .lightbox-panel-outer{ width:100%; flex:1 1 auto; min-height:0; }
+    .lightbox-panel{ max-height:100%; }
+    /* The close button sits top-right; the icon menu used to also sit top-right and
+       overlap it. Top-left instead keeps both reachable and visible. */
+    .lightbox-menu-wrap{ position:absolute; top:8px; left:8px; flex-direction:row; }
     #tagStatsModal, #prefReportModal, #editModeModal{ padding:14px 12px 20px; }
     .tag-stats-list, #prefReportBody{ max-width:100%; }
     .tag-stat-row{ flex-wrap:wrap; }
@@ -5452,6 +5466,20 @@
     });
     editModeTagFilterModeBtn.textContent = reviewTagFilterMode;
   }
+  let lastStagingRenderAt = 0;
+  const STAGING_RENDER_MIN_INTERVAL_MS = 400;
+  // renderPoolGrid fully rebuilds its container (innerHTML='') on every call, which
+  // is fine for occasional renders but visibly flickers (thumbnails vanish and
+  // reappear) if called on every small batch during a fast-completing search. This
+  // caps how often that rebuild actually happens during the fetch loop; the loop
+  // still calls renderDanbooruStaging() once, unthrottled, after it finishes, so the
+  // final results are never held back by the throttle.
+  function renderDanbooruStagingThrottled(){
+    const now = Date.now();
+    if(now - lastStagingRenderAt < STAGING_RENDER_MIN_INTERVAL_MS) return;
+    lastStagingRenderAt = now;
+    renderDanbooruStaging();
+  }
   // Single place that updates the search status text -- keeps the small hint under the
   // search button, the status line at the top of the edit-mode review screen, and (while
   // a search is running) the review screen's title all in sync, so progress is visible no
@@ -5539,7 +5567,7 @@
               added++;
             }
           });
-          renderDanbooruStaging();
+          renderDanbooruStagingThrottled();
           setDanbooruStatus(`取得中… ${added}件追加済み(ページ${page}・検索条件: ${tags || '(タグなし)'})`);
         }
       }
@@ -5547,6 +5575,7 @@
       setDanbooruStatus(`取得中… ${fetchedRaw}/${count}件(ページ${page}・検索条件: ${tags || '(タグなし)'})`);
       page++;
     }
+    renderDanbooruStaging();
     // Report exactly what was actually sent to Danbooru, not just "some tags were
     // dropped" -- that way the user can see precisely which combination worked (or
     // didn't) instead of having to guess.
