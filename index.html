@@ -723,8 +723,13 @@
           <p class="hint" style="margin-top:0">設定・お気に入り・マイリスト・除外リストをまとめて1つのJSONファイルに書き出し/読み込みできます(画像プール自体は対象外です)。</p>
           <div class="row">
             <button id="backupExportBtn" class="btn small" style="flex:1">💾 書き出し</button>
-            <button id="backupImportBtn" class="btn small" style="flex:1">📂 読み込み</button>
+            <button id="backupImportBtn" class="btn small" style="flex:1">📂 読み込み(上書き)</button>
           </div>
+          <label class="check-row"><input type="checkbox" id="backupIncludeImagesChk" checked>書き出しにローカル画像のデータ本体も含める(他の端末にも画像ごと移せますが、ファイルサイズが大きくなります)</label>
+          <div class="row" style="margin-top:6px">
+            <button id="backupMergeBtn" class="btn small ghost" style="flex:1">🔀 読み込み(マージ)</button>
+          </div>
+          <p class="hint" style="margin-top:4px">「マージ」は、今ある内容は消さずに、バックアップの中身を追加します(PCとスマホ、両方のお気に入りを合わせたい時などに使えます)。重複するもの(同じDanbooru投稿・同じマイリスト)は追加されません。</p>
           <input type="file" id="backupImportInput" accept="application/json,.json" hidden>
         </div>
 
@@ -3056,6 +3061,7 @@
 
   /* ===================== favorites + My List persistence ===================== */
   const LS_FAV_KEY = 'phototiler_favorites_v1';
+  function getFavoritesRecords(){ try{ return JSON.parse(localStorage.getItem(LS_FAV_KEY) || '[]'); }catch(e){ return []; } }
   const LS_MYLIST_KEY = 'phototiler_mylists_v1';
   const LS_TEMPLATES_KEY = 'phototiler_templates_v1';
   const LS_SEARCH_HISTORY_KEY = 'phototiler_search_history_v1';
@@ -3620,6 +3626,7 @@
 
   /* ===================== exclude list persistence ===================== */
   const LS_EXCLUDE_KEY = 'phototiler_exclude_v1';
+  function getExcludeRecords(){ try{ return JSON.parse(localStorage.getItem(LS_EXCLUDE_KEY) || '[]'); }catch(e){ return []; } }
 
   let excludeList = [];
   const excludeMultiSel = { sel: new Set(), anchor: null };
@@ -3670,16 +3677,42 @@
      import-specific parsing/resolution logic needed. The live image pools
      (slide-pool / compose-pool) are intentionally excluded -- those are
      working/session state, not saved data. */
-  function exportBackup(){
+  // Local-image records (idbKey) only store a reference to this device's IndexedDB --
+  // moving the backup to another device would leave those references dangling with
+  // no way to resolve them. Embedding the actual blob (as a data URL) makes the
+  // image itself portable, at the cost of a much larger backup file; it's opt-in via
+  // the export checkbox for that reason.
+  async function embedLocalImagesInRecords(records){
+    for(const rec of records){
+      if(rec.idbKey && !rec.embeddedImageData){
+        try{
+          const blob = await idbGetIn(IDB_IMAGE_STORE, rec.idbKey);
+          if(blob) rec.embeddedImageData = await blobToDataURL(blob);
+        }catch(e){}
+      }
+    }
+  }
+  async function exportBackup(){
+    const includeImages = backupIncludeImagesChk.checked;
+    if(includeImages) showToast('画像データを含めて書き出し中…');
+    const favorites_ = JSON.parse(localStorage.getItem(LS_FAV_KEY) || '[]');
+    const mylists_ = JSON.parse(localStorage.getItem(LS_MYLIST_KEY) || '[]');
+    const templates_ = JSON.parse(localStorage.getItem(LS_TEMPLATES_KEY) || '[]');
+    const exclude_ = JSON.parse(localStorage.getItem(LS_EXCLUDE_KEY) || '[]');
+    if(includeImages){
+      await embedLocalImagesInRecords(favorites_);
+      await embedLocalImagesInRecords(exclude_);
+      for(const list of mylists_){ if(Array.isArray(list.items)) await embedLocalImagesInRecords(list.items); }
+    }
     const bundle = {
       app: 'phototiler',
       backupVersion: 1,
       exportedAt: new Date().toISOString(),
       settings: loadSettings(),
-      favorites: JSON.parse(localStorage.getItem(LS_FAV_KEY) || '[]'),
-      mylists: JSON.parse(localStorage.getItem(LS_MYLIST_KEY) || '[]'),
-      templates: JSON.parse(localStorage.getItem(LS_TEMPLATES_KEY) || '[]'),
-      exclude: JSON.parse(localStorage.getItem(LS_EXCLUDE_KEY) || '[]')
+      favorites: favorites_,
+      mylists: mylists_,
+      templates: templates_,
+      exclude: exclude_
     };
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type:'application/json' });
     const url = URL.createObjectURL(blob);
@@ -3692,6 +3725,24 @@
     a.remove();
     URL.revokeObjectURL(url);
     showToast('バックアップを書き出しました');
+  }
+  // Reverses embedLocalImagesInRecords on import: turns embedded data URLs back
+  // into real blobs stored under a freshly-generated local idbKey (the original
+  // idbKey came from a different device's IndexedDB and means nothing here), then
+  // drops the (large) embedded data from the record so it isn't also redundantly
+  // duplicated into localStorage.
+  async function materializeEmbeddedImages(records){
+    for(const rec of records){
+      if(rec.embeddedImageData){
+        try{
+          const blob = await (await fetch(rec.embeddedImageData)).blob();
+          const idbKey = 'img:' + uniqueFileNameFor(rec.name);
+          await idbSetIn(IDB_IMAGE_STORE, idbKey, blob);
+          rec.idbKey = idbKey;
+        }catch(e){}
+        delete rec.embeddedImageData;
+      }
+    }
   }
   async function importBackupFromFile(file){
     let data;
@@ -3706,6 +3757,14 @@
       return;
     }
     if(!confirm('現在の設定・お気に入り・マイリスト・除外リストを、読み込んだバックアップの内容で上書きします。よろしいですか?(画像プール自体は影響を受けません)')) return;
+    const hasEmbedded = [data.favorites, data.exclude, ...(Array.isArray(data.mylists)? data.mylists.map(l=>l.items):[])]
+      .some(arr=> Array.isArray(arr) && arr.some(r=> r && r.embeddedImageData));
+    if(hasEmbedded) showToast('画像データを取り込み中…');
+    if(Array.isArray(data.favorites)) await materializeEmbeddedImages(data.favorites);
+    if(Array.isArray(data.exclude)) await materializeEmbeddedImages(data.exclude);
+    if(Array.isArray(data.mylists)){
+      for(const list of data.mylists){ if(Array.isArray(list.items)) await materializeEmbeddedImages(list.items); }
+    }
     if(data.settings && typeof data.settings==='object') saveSettings(data.settings);
     if(Array.isArray(data.favorites)) localStorage.setItem(LS_FAV_KEY, JSON.stringify(data.favorites));
     if(Array.isArray(data.mylists)) localStorage.setItem(LS_MYLIST_KEY, JSON.stringify(data.mylists));
@@ -3720,6 +3779,91 @@
     renderAllMylistViews();
     renderLayoutTemplates();
     showToast('バックアップを読み込みました');
+  }
+  // A stable-ish identity for dedup purposes when merging backups from another
+  // device: prefer the Danbooru post id (exact and device-independent), then
+  // whatever storage reference the record has, then the URL itself. Two records
+  // with no identity at all (e.g. bare local blobs with none of these) can't be
+  // deduped and are just both kept.
+  function recordIdentityKey(rec){
+    if(rec.danbooruId) return 'db:'+rec.danbooruId;
+    if(rec.idbKey) return 'idb:'+rec.idbKey;
+    if(rec.storedFile) return 'file:'+rec.storedFile;
+    if(rec.url) return 'url:'+rec.url;
+    return null;
+  }
+  function mergeRecordArrays(existing, incoming){
+    const existingKeys = new Set(existing.map(recordIdentityKey).filter(Boolean));
+    const merged = existing.slice();
+    let added = 0;
+    incoming.forEach(rec=>{
+      const key = recordIdentityKey(rec);
+      if(key && existingKeys.has(key)) return;
+      merged.push(rec);
+      added++;
+      if(key) existingKeys.add(key);
+    });
+    return { merged, added };
+  }
+  // My Lists and templates are kept as distinct named entries rather than merging
+  // each list's own contents -- simpler, and avoids surprising someone by silently
+  // combining two same-named-but-different lists from separate devices. Only an
+  // exact id match (e.g. the same backup imported twice) is treated as a duplicate.
+  function mergeById(existing, incoming){
+    const existingIds = new Set(existing.map(x=> x.id));
+    const merged = existing.slice();
+    let added = 0;
+    incoming.forEach(x=>{
+      if(existingIds.has(x.id)) return;
+      merged.push(x);
+      added++;
+    });
+    return { merged, added };
+  }
+  async function mergeBackupFromFile(file){
+    let data;
+    try{
+      data = JSON.parse(await file.text());
+    }catch(e){
+      showToast('JSONファイルとして読み込めませんでした', 'error');
+      return;
+    }
+    if(!data || typeof data !== 'object'){
+      showToast('バックアップファイルの形式が正しくありません', 'error');
+      return;
+    }
+    if(!confirm('現在のお気に入り・マイリスト・除外リストに、バックアップの内容を追加します(重複は追加されません)。設定は変更されません。よろしいですか?')) return;
+    const hasEmbedded = [data.favorites, data.exclude, ...(Array.isArray(data.mylists)? data.mylists.map(l=>l.items):[])]
+      .some(arr=> Array.isArray(arr) && arr.some(r=> r && r.embeddedImageData));
+    if(hasEmbedded) showToast('画像データを取り込み中…');
+    if(Array.isArray(data.favorites)) await materializeEmbeddedImages(data.favorites);
+    if(Array.isArray(data.exclude)) await materializeEmbeddedImages(data.exclude);
+    if(Array.isArray(data.mylists)){
+      for(const list of data.mylists){ if(Array.isArray(list.items)) await materializeEmbeddedImages(list.items); }
+    }
+    const favResult = Array.isArray(data.favorites)
+      ? mergeRecordArrays(getFavoritesRecords(), data.favorites) : null;
+    if(favResult) localStorage.setItem(LS_FAV_KEY, JSON.stringify(favResult.merged));
+    const mylistResult = Array.isArray(data.mylists)
+      ? mergeById(getMyLists(), data.mylists) : null;
+    if(mylistResult) saveMyLists(mylistResult.merged);
+    const templateResult = Array.isArray(data.templates)
+      ? mergeById(getLayoutTemplates(), data.templates) : null;
+    if(templateResult) saveLayoutTemplates(templateResult.merged);
+    const excludeResult = Array.isArray(data.exclude)
+      ? mergeRecordArrays(getExcludeRecords(), data.exclude) : null;
+    if(excludeResult) localStorage.setItem(LS_EXCLUDE_KEY, JSON.stringify(excludeResult.merged));
+    favorites = [];
+    excludeList = [];
+    await Promise.all([ loadFavoritesFromStorage(), loadExcludeFromStorage() ]);
+    renderAllMylistViews();
+    renderLayoutTemplates();
+    const parts = [];
+    if(favResult) parts.push(`お気に入り+${favResult.added}`);
+    if(mylistResult) parts.push(`マイリスト+${mylistResult.added}`);
+    if(excludeResult) parts.push(`除外リスト+${excludeResult.added}`);
+    if(templateResult) parts.push(`テンプレート+${templateResult.added}`);
+    showToast(parts.length ? `マージしました(${parts.join(' / ')})` : 'マージ可能な内容が見つかりませんでした');
   }
   function excludePoolOpts(){
     return {
@@ -6007,7 +6151,9 @@
   const saveDirPickBtn = document.getElementById('saveDirPickBtn');
   const saveDirReconnectBtn = document.getElementById('saveDirReconnectBtn');
   const backupExportBtn = document.getElementById('backupExportBtn');
+  const backupIncludeImagesChk = document.getElementById('backupIncludeImagesChk');
   const backupImportBtn = document.getElementById('backupImportBtn');
+  const backupMergeBtn = document.getElementById('backupMergeBtn');
   const backupImportInput = document.getElementById('backupImportInput');
 
   const favPoolGridEl = document.getElementById('favPoolGrid');
@@ -6510,12 +6656,15 @@
 
   /* ---- backup ---- */
   backupExportBtn.addEventListener('click', exportBackup);
-  backupImportBtn.addEventListener('click', ()=> backupImportInput.click());
+  let pendingBackupImportMode = 'overwrite';
+  backupImportBtn.addEventListener('click', ()=>{ pendingBackupImportMode = 'overwrite'; backupImportInput.click(); });
+  backupMergeBtn.addEventListener('click', ()=>{ pendingBackupImportMode = 'merge'; backupImportInput.click(); });
   backupImportInput.addEventListener('change', async e=>{
     const file = e.target.files[0];
     backupImportInput.value = '';
     if(!file) return;
-    await importBackupFromFile(file);
+    if(pendingBackupImportMode==='merge') await mergeBackupFromFile(file);
+    else await importBackupFromFile(file);
   });
 
   /* ---- My List ---- */
