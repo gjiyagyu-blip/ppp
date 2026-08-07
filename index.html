@@ -659,17 +659,20 @@
 
     /* Modals: fixed pixel widths meant for desktop overflow a phone screen entirely. */
     .settings-modal-inner, .crop-modal-inner{ width:94vw; max-height:94vh; padding:14px 16px; }
-    .lightbox-inner{ max-width:98vw; max-height:94vh; flex-direction:column; min-height:0; }
-    .lightbox-img-wrap{ max-width:100%; }
-    .lightbox-img-wrap img{ max-width:100%; max-height:40vh; }
-    /* flex:1 1 auto alone still lets this item grow past the lightbox's max-height
-       instead of triggering .lightbox-panel's own overflow-y:auto -- min-height:0
-       is what actually allows a flex item to shrink and scroll internally. */
-    .lightbox-panel-outer{ width:100%; flex:1 1 auto; min-height:0; }
-    .lightbox-panel{ max-height:100%; }
+    #lightbox{ padding:10px; }
+    .lightbox-inner{ max-width:98vw; max-height:94vh; height:94vh; flex-direction:column; min-height:0; }
+    .lightbox-img-wrap{ max-width:100%; flex:0 0 auto; max-height:42vh; }
+    .lightbox-img-wrap img{ max-width:100%; max-height:42vh; }
+    /* flex:1 1 auto alone still lets this item grow past the lightbox's height
+       instead of triggering .lightbox-panel's own overflow-y:auto -- flex-basis:0
+       plus min-height:0 is what actually forces it to the remaining space and lets
+       it shrink/scroll internally instead of sizing to its content. */
+    .lightbox-panel-outer{ width:100%; flex:1 1 0; min-height:0; }
+    .lightbox-panel{ height:100%; max-height:100%; }
     /* The close button sits top-right; the icon menu used to also sit top-right and
        overlap it. Top-left instead keeps both reachable and visible. */
     .lightbox-menu-wrap{ position:absolute; top:8px; left:8px; flex-direction:row; }
+    #editModeConfirmRow{ flex-direction:column; }
     #tagStatsModal, #prefReportModal, #editModeModal{ padding:14px 12px 20px; }
     .tag-stats-list, #prefReportBody{ max-width:100%; }
     .tag-stat-row{ flex-wrap:wrap; }
@@ -1062,7 +1065,7 @@
   <div class="row" id="editModeConfirmRow" hidden style="flex:0 0 auto; margin-top:14px">
     <button class="btn" id="editModeConfirmAddSelectedBtn" style="flex:1">✅ 選択した画像だけ追加</button>
     <button class="btn primary" id="editModeConfirmAddBtn" style="flex:1">✅ プールに追加</button>
-    <button class="btn ghost" id="editModeDiscardBtn">破棄して閉じる</button>
+    <button class="btn ghost" id="editModeDiscardBtn">破棄</button>
   </div>
 </div>
 
@@ -1380,16 +1383,18 @@
       if(item.userTags && item.userTags.length) obj.userTags = item.userTags;
       return obj;
     }
-    // No save folder: falls back to embedding as a data URL directly in localStorage,
-    // which has a small (typically 5-10MB total) quota -- downscaling here keeps a
-    // handful of full-resolution photos from exhausting it and breaking favorites
-    // entirely, at the cost of some quality for this path specifically.
-    const resized = await resizeImageToBlob(srcBlob, 1600, 0.88);
-    const dataUrl = await blobToDataURL(resized);
-    const obj = { id: item.id, url: dataUrl, name: item.name || '', el: item.el, cors:true, danbooruId: null, isLocalOrigin:true };
+    // No save folder (the only option on mobile -- no mobile browser supports the
+    // File System Access API's folder picker at all): store the original blob in
+    // IndexedDB instead of embedding a downscaled data URL directly in localStorage,
+    // whose quota is a shared ~5-10MB across everything the app keeps there.
+    // IndexedDB's quota is vastly larger, so this keeps full-resolution images.
+    const idbKey = 'img:' + uniqueFileNameFor(item.name);
+    await idbSetIn(IDB_IMAGE_STORE, idbKey, srcBlob);
+    const url = URL.createObjectURL(srcBlob);
+    const obj = { id: item.id, url, name: item.name || '', el: item.el, cors:true, danbooruId: null, idbKey, isLocalOrigin:true };
     if(item.sourceUrl) obj.sourceUrl = item.sourceUrl;
     if(item.cropRect) obj.cropRect = item.cropRect;
-      if(item.paintStrokes) obj.paintStrokes = item.paintStrokes;
+    if(item.paintStrokes) obj.paintStrokes = item.paintStrokes;
     if(item.note) obj.note = item.note;
     if(item.userTags && item.userTags.length) obj.userTags = item.userTags;
     return obj;
@@ -1404,6 +1409,22 @@
       const url = URL.createObjectURL(file);
       const el = await loadImgEl(url);
       const obj = { id: ++imgSeq, url, name: rec.name || '', el, cors:true, danbooruId: rec.danbooruId || null, storedFile: rec.storedFile, isLocalOrigin:true };
+      if(rec.cropRect) obj.cropRect = rec.cropRect;
+      if(rec.paintStrokes) obj.paintStrokes = rec.paintStrokes;
+      if(rec.isHighQuality) obj.isHighQuality = true;
+      if(rec.sourceUrl) obj.sourceUrl = rec.sourceUrl;
+      if(rec.note) obj.note = rec.note;
+      if(rec.userTags && rec.userTags.length) obj.userTags = rec.userTags;
+      if(rec.danbooruCandidate) obj.danbooruCandidate = rec.danbooruCandidate;
+      if(rec.danbooruCheckedAt) obj.danbooruCheckedAt = rec.danbooruCheckedAt;
+      return obj;
+    }
+    if(rec.idbKey){
+      const blob = await idbGetIn(IDB_IMAGE_STORE, rec.idbKey);
+      if(!blob) throw new Error('画像データが見つかりません(ブラウザの保存領域から失われた可能性があります)');
+      const url = URL.createObjectURL(blob);
+      const el = await loadImgEl(url);
+      const obj = { id: ++imgSeq, url, name: rec.name || '', el, cors:true, danbooruId: rec.danbooruId || null, idbKey: rec.idbKey, isLocalOrigin:true };
       if(rec.cropRect) obj.cropRect = rec.cropRect;
       if(rec.paintStrokes) obj.paintStrokes = rec.paintStrokes;
       if(rec.isHighQuality) obj.isHighQuality = true;
@@ -2727,7 +2748,6 @@
   let paintWorkingStrokes = [];
   let paintCurrentStroke = null;
   let paintColor = '#000000';
-  let paintCursorSize = 6;
 
   function cropRectOf(item){ return (item && item.cropRect) || { x:0, y:0, w:1, h:1 }; }
   // Full-image-space -> the space currently visible through this crop (what the
@@ -2819,32 +2839,55 @@
   const SUPPORTS_FS_ACCESS = 'showDirectoryPicker' in window;
   const IDB_NAME = 'phototiler_fs';
   const IDB_STORE = 'handles';
+  // Local images saved without a connected save folder (the only option on mobile,
+  // since no mobile browser implements the File System Access API's folder picker at
+  // all) go into this second store as real Blobs instead of being base64-embedded
+  // into localStorage, whose quota is a shared ~5-10MB across everything the app
+  // keeps there. IndexedDB's quota is vastly larger (typically hundreds of MB+),
+  // so this can keep full-resolution images and works reliably as the primary path
+  // on mobile.
+  const IDB_IMAGE_STORE = 'images';
   function idbOpen(){
     return new Promise((resolve, reject)=>{
-      const req = indexedDB.open(IDB_NAME, 1);
-      req.onupgradeneeded = ()=> req.result.createObjectStore(IDB_STORE);
+      const req = indexedDB.open(IDB_NAME, 2);
+      req.onupgradeneeded = ()=>{
+        const db = req.result;
+        if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+        if(!db.objectStoreNames.contains(IDB_IMAGE_STORE)) db.createObjectStore(IDB_IMAGE_STORE);
+      };
       req.onsuccess = ()=> resolve(req.result);
       req.onerror = ()=> reject(req.error);
     });
   }
-  async function idbSet(key, val){
+  async function idbSetIn(storeName, key, val){
     const db = await idbOpen();
     return new Promise((resolve, reject)=>{
-      const tx = db.transaction(IDB_STORE, 'readwrite');
-      tx.objectStore(IDB_STORE).put(val, key);
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).put(val, key);
       tx.oncomplete = ()=> resolve();
       tx.onerror = ()=> reject(tx.error);
     });
   }
-  async function idbGet(key){
+  async function idbGetIn(storeName, key){
     const db = await idbOpen();
     return new Promise((resolve, reject)=>{
-      const tx = db.transaction(IDB_STORE, 'readonly');
-      const req = tx.objectStore(IDB_STORE).get(key);
+      const tx = db.transaction(storeName, 'readonly');
+      const req = tx.objectStore(storeName).get(key);
       req.onsuccess = ()=> resolve(req.result);
       req.onerror = ()=> reject(req.error);
     });
   }
+  async function idbDeleteIn(storeName, key){
+    const db = await idbOpen();
+    return new Promise((resolve, reject)=>{
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).delete(key);
+      tx.oncomplete = ()=> resolve();
+      tx.onerror = ()=> reject(tx.error);
+    });
+  }
+  async function idbSet(key, val){ return idbSetIn(IDB_STORE, key, val); }
+  async function idbGet(key){ return idbGetIn(IDB_STORE, key); }
 
   let saveDirHandle = null;    // ready to use once permission is confirmed granted
   let pendingDirHandle = null; // known from a previous visit, but needs a user gesture to re-grant
@@ -3071,6 +3114,22 @@
       if(item.danbooruCheckedAt) rec.danbooruCheckedAt = item.danbooruCheckedAt;
       return rec;
     }
+    if(item.idbKey){
+      // The url here is a session-only blob: URL (see URL.createObjectURL in
+      // embedLocalItemForStorage) -- it can't be persisted as-is; idbKey is what
+      // resolveRecordToImageObject uses to fetch the actual bytes back from
+      // IndexedDB and mint a fresh blob URL next time.
+      const rec = { idbKey: item.idbKey, name: item.name || '', danbooruId: item.danbooruId || null, isLocalOrigin: true };
+      if(item.cropRect) rec.cropRect = item.cropRect;
+      if(item.paintStrokes) rec.paintStrokes = item.paintStrokes;
+      if(item.isHighQuality) rec.isHighQuality = true;
+      if(item.sourceUrl) rec.sourceUrl = item.sourceUrl;
+      if(item.note) rec.note = item.note;
+      if(item.userTags && item.userTags.length) rec.userTags = item.userTags;
+      if(item.danbooruCandidate) rec.danbooruCandidate = item.danbooruCandidate;
+      if(item.danbooruCheckedAt) rec.danbooruCheckedAt = item.danbooruCheckedAt;
+      return rec;
+    }
     const rec = { url: item.altUrl || item.url, name: item.name || '', danbooruId: item.danbooruId || null, isLocalOrigin: !!item.isLocalOrigin };
     if(item.cropRect) rec.cropRect = item.cropRect;
       if(item.paintStrokes) rec.paintStrokes = item.paintStrokes;
@@ -3122,9 +3181,11 @@
   async function toggleFavorite(item){
     if(isFavoriteItem(item)){
       if(!confirm(`「${item.name || '(無題)'}」をお気に入りから削除しますか?`)) return;
+      const removed = favorites.find(f=> matchesItem(f, item));
       favorites = favorites.filter(f=> !matchesItem(f, item));
       persistFavorites();
       refreshFavoriteAwareGrids();
+      if(removed && removed.idbKey) idbDeleteIn(IDB_IMAGE_STORE, removed.idbKey).catch(()=>{});
       logEvent(`お気に入りから削除: ${item.name || '(無題)'}`);
       return;
     }
@@ -3173,12 +3234,14 @@
       onRemove: item=>{
         if(!confirm(`「${item.name || '(無題)'}」をお気に入りから削除しますか?`)) return;
         favorites = favorites.filter(f=> f.id!==item.id); favMultiSel.sel.delete(item.id); persistFavorites(); refreshFavoriteAwareGrids();
+        if(item.idbKey) idbDeleteIn(IDB_IMAGE_STORE, item.idbKey).catch(()=>{});
       },
       onOpenLightbox: openLightbox,
       isFavorite: ()=> true,
       onToggleFavorite: item=>{
         if(!confirm(`「${item.name || '(無題)'}」をお気に入りから削除しますか?`)) return;
         favorites = favorites.filter(f=> f.id!==item.id); persistFavorites(); refreshFavoriteAwareGrids();
+        if(item.idbKey) idbDeleteIn(IDB_IMAGE_STORE, item.idbKey).catch(()=>{});
       },
       isExcluded: isExcludedItem,
       onToggleExclude: toggleExclude,
@@ -3227,6 +3290,14 @@
   function saveMyLists(lists){
     writeJsonToSaveFolder(SAVE_FOLDER_MYLISTS_FILE, lists);
     try{ localStorage.setItem(LS_MYLIST_KEY, JSON.stringify(lists)); return true; }catch(e){ return false; }
+  }
+  // Best-effort cleanup for a batch of mylist records being discarded (list deleted,
+  // or overwritten with different contents) -- deletes each record's IndexedDB blob
+  // (see embedLocalItemForStorage/buildMylistRecords) so removed images don't sit
+  // around as orphaned data indefinitely. Records without an idbKey (Danbooru-linked
+  // or save-folder-based) are simply skipped.
+  function cleanupIdbKeysFromRecords(records){
+    (records||[]).forEach(r=>{ if(r && r.idbKey) idbDeleteIn(IDB_IMAGE_STORE, r.idbKey).catch(()=>{}); });
   }
   // Layout templates capture only the tree's shape (splits, directions, ratios) --
   // never the actual images -- so the same composition shape can be reused later
@@ -3353,6 +3424,7 @@
       const delBtn = document.createElement('button'); delBtn.className = 'tbtn'; delBtn.type = 'button'; delBtn.textContent = '🗑';
       delBtn.addEventListener('click', ()=>{
         if(!confirm(`リスト「${list.name}」を削除します。よろしいですか?`)) return;
+        cleanupIdbKeysFromRecords(list.items);
         saveMyLists(getMyLists().filter(l=> l.id!==list.id));
         renderAllMylistViews();
       });
@@ -3412,16 +3484,20 @@
             await writeFileToFolder(fileName, srcBlob);
             const rec = { storedFile: fileName, name: item.name || '', danbooruId: null };
             if(item.sourceUrl) rec.sourceUrl = item.sourceUrl;
+            if(item.cropRect) rec.cropRect = item.cropRect;
+            if(item.paintStrokes) rec.paintStrokes = item.paintStrokes;
             if(item.note) rec.note = item.note;
       if(item.userTags && item.userTags.length) rec.userTags = item.userTags;
       if(item.danbooruCandidate) rec.danbooruCandidate = item.danbooruCandidate;
       if(item.danbooruCheckedAt) rec.danbooruCheckedAt = item.danbooruCheckedAt;
             recs.push(rec);
           } else {
-            const resized = await resizeImageToBlob(srcBlob, 1600, 0.88);
-            const dataUrl = await blobToDataURL(resized);
-            const rec = { url: dataUrl, name: item.name || '', danbooruId: null };
+            const idbKey = 'img:' + uniqueFileNameFor(item.name);
+            await idbSetIn(IDB_IMAGE_STORE, idbKey, srcBlob);
+            const rec = { idbKey, name: item.name || '', danbooruId: null };
             if(item.sourceUrl) rec.sourceUrl = item.sourceUrl;
+            if(item.cropRect) rec.cropRect = item.cropRect;
+            if(item.paintStrokes) rec.paintStrokes = item.paintStrokes;
             if(item.note) rec.note = item.note;
       if(item.userTags && item.userTags.length) rec.userTags = item.userTags;
       if(item.danbooruCandidate) rec.danbooruCandidate = item.danbooruCandidate;
@@ -3446,6 +3522,7 @@
     const lists = getMyLists();
     const idx = lists.findIndex(l=> l.id===list.id);
     if(idx===-1){ showToast('リストが見つかりません', 'error'); return; }
+    cleanupIdbKeysFromRecords(lists[idx].items);
     lists[idx] = { ...lists[idx], items: recs, savedAt: Date.now() };
     const saved = saveMyLists(lists);
     renderAllMylistViews();
@@ -4882,6 +4959,7 @@
       if(item.isHighQuality) newObj.isHighQuality = item.isHighQuality;
       if(item.note) newObj.note = item.note;
       if(item.userTags && item.userTags.length) newObj.userTags = item.userTags;
+      const oldIdbKey = item.idbKey;
       const pool = getPool();
       const idx = pool.indexOf(item);
       if(idx!==-1){
@@ -4890,6 +4968,7 @@
         showToast('紐付けに失敗しました(画像がプールから見つかりませんでした)', 'error');
         return;
       }
+      if(oldIdbKey) idbDeleteIn(IDB_IMAGE_STORE, oldIdbKey).catch(()=>{});
       showToast(`Danbooru #${postId}(一致度${Math.round(score)}%)を紐付けました。マイリスト/お気に入りに保存できます。`);
     }catch(e){
       showToast('紐付けに失敗しました('+(e.message||'不明なエラー')+')', 'error');
@@ -6372,10 +6451,12 @@
     const n = favMultiSel.sel.size;
     if(!n) return;
     if(!confirm(`選択中の${n}件をお気に入りから削除しますか?`)) return;
+    const removed = favorites.filter(f=> favMultiSel.sel.has(f.id));
     favorites = favorites.filter(f=> !favMultiSel.sel.has(f.id));
     favMultiSel.sel.clear();
     persistFavorites();
     renderFavPool();
+    removed.forEach(f=>{ if(f.idbKey) idbDeleteIn(IDB_IMAGE_STORE, f.idbKey).catch(()=>{}); });
   });
   favPoolSelDbSearchBtn.addEventListener('click', ()=>{
     const items = favorites.filter(f=> favMultiSel.sel.has(f.id));
