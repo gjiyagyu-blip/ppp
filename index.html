@@ -581,12 +581,19 @@
   .compose-fit-layer{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
 
   #exitPreviewBtn{
-    position:absolute; top:14px; right:14px; z-index:50;
+    position:absolute; top:14px; right:14px; z-index:50; display:none;
     background:rgba(20,20,22,0.7); color:var(--text); border:1px solid var(--line);
     padding:8px 13px; border-radius:var(--radius); cursor:pointer; font-size:0.8rem;
+    opacity:1; transition:opacity .3s ease;
   }
   body.preview-mode #topbar, body.preview-mode #sidebar{ display:none; }
-  #exitPreviewBtn{ display:none; }
+  /* Desktop already has Esc to leave preview mode, so the button would just be
+     redundant clutter there -- only touch devices (no keyboard, hover:none) need a
+     tappable way out. */
+  @media (hover:none){
+    body.preview-mode #exitPreviewBtn{ display:block; }
+  }
+  body.preview-mode #exitPreviewBtn.preview-btn-idle{ opacity:0; pointer-events:none; }
 
   /* ---------------- fixed slideshow start/stop panel ---------------- */
   #slideshowControls{
@@ -6807,12 +6814,32 @@
 
   /* ---- preview mode ---- */
   previewBtn.addEventListener('click', ()=> document.body.classList.add('preview-mode'));
-  exitPreviewBtn.addEventListener('click', ()=> document.body.classList.remove('preview-mode'));
+  exitPreviewBtn.addEventListener('click', ()=>{
+    document.body.classList.remove('preview-mode');
+    clearTimeout(previewBtnIdleTimer);
+    exitPreviewBtn.classList.remove('preview-btn-idle');
+  });
   document.addEventListener('keydown', e=>{
     if(e.key==='Escape' && document.body.classList.contains('preview-mode')){
       document.body.classList.remove('preview-mode');
+      clearTimeout(previewBtnIdleTimer);
+      exitPreviewBtn.classList.remove('preview-btn-idle');
     }
   });
+
+  // On touch devices, the × button fades out after a few seconds of no touch input
+  // (like video-player controls) so it doesn't sit over the slideshow indefinitely;
+  // any tap brings it back and resets the timer.
+  const PREVIEW_BTN_IDLE_MS = 3000;
+  let previewBtnIdleTimer = null;
+  function wakePreviewExitBtn(){
+    if(!document.body.classList.contains('preview-mode')) return;
+    exitPreviewBtn.classList.remove('preview-btn-idle');
+    clearTimeout(previewBtnIdleTimer);
+    previewBtnIdleTimer = setTimeout(()=> exitPreviewBtn.classList.add('preview-btn-idle'), PREVIEW_BTN_IDLE_MS);
+  }
+  document.addEventListener('touchstart', wakePreviewExitBtn, { passive:true });
+  previewBtn.addEventListener('click', wakePreviewExitBtn);
 
   /* ---- stage aspect ratio lock -----------------------------------------
      Browser window vs OS-maximized vs F11 fullscreen can each report a
