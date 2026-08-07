@@ -282,7 +282,7 @@
   .lb-note-input:focus{ outline:none; border-color:var(--accent); }
   #lightboxClose{
     position:absolute; top:16px; right:20px; background:rgba(255,255,255,0.08); color:#fff; border:none;
-    width:36px; height:36px; border-radius:50%; font-size:16px; cursor:pointer;
+    width:36px; height:36px; border-radius:50%; font-size:16px; cursor:pointer; z-index:30;
   }
   .lightbox-nav{
     position:absolute; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.08); color:#fff;
@@ -672,6 +672,7 @@
     /* The close button sits top-right; the icon menu used to also sit top-right and
        overlap it. Top-left instead keeps both reachable and visible. */
     .lightbox-menu-wrap{ position:absolute; top:8px; left:8px; flex-direction:row; }
+    #lightboxClose{ width:44px; height:44px; font-size:20px; top:6px; right:6px; z-index:35; }
     #editModeConfirmRow{ flex-direction:column; }
     #tagStatsModal, #prefReportModal, #editModeModal{ padding:14px 12px 20px; }
     .tag-stats-list, #prefReportBody{ max-width:100%; }
@@ -3766,28 +3767,33 @@
       return;
     }
     if(!confirm('現在の設定・お気に入り・マイリスト・除外リストを、読み込んだバックアップの内容で上書きします。よろしいですか?(画像プール自体は影響を受けません)')) return;
-    const hasEmbedded = [data.favorites, data.exclude, ...(Array.isArray(data.mylists)? data.mylists.map(l=>l.items):[])]
-      .some(arr=> Array.isArray(arr) && arr.some(r=> r && r.embeddedImageData));
-    if(hasEmbedded) showToast('画像データを取り込み中…');
-    if(Array.isArray(data.favorites)) await materializeEmbeddedImages(data.favorites);
-    if(Array.isArray(data.exclude)) await materializeEmbeddedImages(data.exclude);
-    if(Array.isArray(data.mylists)){
-      for(const list of data.mylists){ if(Array.isArray(list.items)) await materializeEmbeddedImages(list.items); }
+    try{
+      const hasEmbedded = [data.favorites, data.exclude, ...(Array.isArray(data.mylists)? data.mylists.map(l=>l.items):[])]
+        .some(arr=> Array.isArray(arr) && arr.some(r=> r && r.embeddedImageData));
+      if(hasEmbedded) showToast('画像データを取り込み中…');
+      if(Array.isArray(data.favorites)) await materializeEmbeddedImages(data.favorites);
+      if(Array.isArray(data.exclude)) await materializeEmbeddedImages(data.exclude);
+      if(Array.isArray(data.mylists)){
+        for(const list of data.mylists){ if(Array.isArray(list.items)) await materializeEmbeddedImages(list.items); }
+      }
+      if(data.settings && typeof data.settings==='object') saveSettings(data.settings);
+      if(Array.isArray(data.favorites)) localStorage.setItem(LS_FAV_KEY, JSON.stringify(data.favorites));
+      if(Array.isArray(data.mylists)) localStorage.setItem(LS_MYLIST_KEY, JSON.stringify(data.mylists));
+      if(Array.isArray(data.templates)) localStorage.setItem(LS_TEMPLATES_KEY, JSON.stringify(data.templates));
+      if(Array.isArray(data.exclude)) localStorage.setItem(LS_EXCLUDE_KEY, JSON.stringify(data.exclude));
+      // Re-run the normal startup loaders against the freshly-written localStorage
+      // data instead of hand-rolling separate import logic.
+      favorites = [];
+      excludeList = [];
+      applySettingsToUI(loadSettings());
+      await Promise.all([ loadFavoritesFromStorage(), loadExcludeFromStorage() ]);
+      renderAllMylistViews();
+      renderLayoutTemplates();
+      showToast('バックアップを読み込みました');
+    }catch(e){
+      console.error('[photo-tiler] backup import failed', e);
+      showToast('バックアップの読み込みに失敗しました('+(e && e.message || e)+')', 'error');
     }
-    if(data.settings && typeof data.settings==='object') saveSettings(data.settings);
-    if(Array.isArray(data.favorites)) localStorage.setItem(LS_FAV_KEY, JSON.stringify(data.favorites));
-    if(Array.isArray(data.mylists)) localStorage.setItem(LS_MYLIST_KEY, JSON.stringify(data.mylists));
-    if(Array.isArray(data.templates)) localStorage.setItem(LS_TEMPLATES_KEY, JSON.stringify(data.templates));
-    if(Array.isArray(data.exclude)) localStorage.setItem(LS_EXCLUDE_KEY, JSON.stringify(data.exclude));
-    // Re-run the normal startup loaders against the freshly-written localStorage
-    // data instead of hand-rolling separate import logic.
-    favorites = [];
-    excludeList = [];
-    applySettingsToUI(loadSettings());
-    await Promise.all([ loadFavoritesFromStorage(), loadExcludeFromStorage() ]);
-    renderAllMylistViews();
-    renderLayoutTemplates();
-    showToast('バックアップを読み込みました');
   }
   // A stable-ish identity for dedup purposes when merging backups from another
   // device: prefer the Danbooru post id (exact and device-independent), then
@@ -3842,37 +3848,42 @@
       return;
     }
     if(!confirm('現在のお気に入り・マイリスト・除外リストに、バックアップの内容を追加します(重複は追加されません)。設定は変更されません。よろしいですか?')) return;
-    const hasEmbedded = [data.favorites, data.exclude, ...(Array.isArray(data.mylists)? data.mylists.map(l=>l.items):[])]
-      .some(arr=> Array.isArray(arr) && arr.some(r=> r && r.embeddedImageData));
-    if(hasEmbedded) showToast('画像データを取り込み中…');
-    if(Array.isArray(data.favorites)) await materializeEmbeddedImages(data.favorites);
-    if(Array.isArray(data.exclude)) await materializeEmbeddedImages(data.exclude);
-    if(Array.isArray(data.mylists)){
-      for(const list of data.mylists){ if(Array.isArray(list.items)) await materializeEmbeddedImages(list.items); }
+    try{
+      const hasEmbedded = [data.favorites, data.exclude, ...(Array.isArray(data.mylists)? data.mylists.map(l=>l.items):[])]
+        .some(arr=> Array.isArray(arr) && arr.some(r=> r && r.embeddedImageData));
+      if(hasEmbedded) showToast('画像データを取り込み中…');
+      if(Array.isArray(data.favorites)) await materializeEmbeddedImages(data.favorites);
+      if(Array.isArray(data.exclude)) await materializeEmbeddedImages(data.exclude);
+      if(Array.isArray(data.mylists)){
+        for(const list of data.mylists){ if(Array.isArray(list.items)) await materializeEmbeddedImages(list.items); }
+      }
+      const favResult = Array.isArray(data.favorites)
+        ? mergeRecordArrays(getFavoritesRecords(), data.favorites) : null;
+      if(favResult) localStorage.setItem(LS_FAV_KEY, JSON.stringify(favResult.merged));
+      const mylistResult = Array.isArray(data.mylists)
+        ? mergeById(getMyLists(), data.mylists) : null;
+      if(mylistResult) saveMyLists(mylistResult.merged);
+      const templateResult = Array.isArray(data.templates)
+        ? mergeById(getLayoutTemplates(), data.templates) : null;
+      if(templateResult) saveLayoutTemplates(templateResult.merged);
+      const excludeResult = Array.isArray(data.exclude)
+        ? mergeRecordArrays(getExcludeRecords(), data.exclude) : null;
+      if(excludeResult) localStorage.setItem(LS_EXCLUDE_KEY, JSON.stringify(excludeResult.merged));
+      favorites = [];
+      excludeList = [];
+      await Promise.all([ loadFavoritesFromStorage(), loadExcludeFromStorage() ]);
+      renderAllMylistViews();
+      renderLayoutTemplates();
+      const parts = [];
+      if(favResult) parts.push(`お気に入り+${favResult.added}`);
+      if(mylistResult) parts.push(`マイリスト+${mylistResult.added}`);
+      if(excludeResult) parts.push(`除外リスト+${excludeResult.added}`);
+      if(templateResult) parts.push(`テンプレート+${templateResult.added}`);
+      showToast(parts.length ? `マージしました(${parts.join(' / ')})` : 'マージ可能な内容が見つかりませんでした');
+    }catch(e){
+      console.error('[photo-tiler] backup merge failed', e);
+      showToast('マージに失敗しました('+(e && e.message || e)+')', 'error');
     }
-    const favResult = Array.isArray(data.favorites)
-      ? mergeRecordArrays(getFavoritesRecords(), data.favorites) : null;
-    if(favResult) localStorage.setItem(LS_FAV_KEY, JSON.stringify(favResult.merged));
-    const mylistResult = Array.isArray(data.mylists)
-      ? mergeById(getMyLists(), data.mylists) : null;
-    if(mylistResult) saveMyLists(mylistResult.merged);
-    const templateResult = Array.isArray(data.templates)
-      ? mergeById(getLayoutTemplates(), data.templates) : null;
-    if(templateResult) saveLayoutTemplates(templateResult.merged);
-    const excludeResult = Array.isArray(data.exclude)
-      ? mergeRecordArrays(getExcludeRecords(), data.exclude) : null;
-    if(excludeResult) localStorage.setItem(LS_EXCLUDE_KEY, JSON.stringify(excludeResult.merged));
-    favorites = [];
-    excludeList = [];
-    await Promise.all([ loadFavoritesFromStorage(), loadExcludeFromStorage() ]);
-    renderAllMylistViews();
-    renderLayoutTemplates();
-    const parts = [];
-    if(favResult) parts.push(`お気に入り+${favResult.added}`);
-    if(mylistResult) parts.push(`マイリスト+${mylistResult.added}`);
-    if(excludeResult) parts.push(`除外リスト+${excludeResult.added}`);
-    if(templateResult) parts.push(`テンプレート+${templateResult.added}`);
-    showToast(parts.length ? `マージしました(${parts.join(' / ')})` : 'マージ可能な内容が見つかりませんでした');
   }
   function excludePoolOpts(){
     return {
@@ -6828,13 +6839,23 @@
     e.preventDefault();
     paintDrawing = true;
     const size = parseFloat(paintSizeSlider.value)||6;
-    paintCurrentStroke = { color: paintColor, size, points: [paintEventPoint(e)] };
+    paintCurrentStroke = { color: paintColor, size, points: [roundPoint(paintEventPoint(e))] };
     renderPaintEditorSvg();
   }
+  // Distance-throttled and lower-precision on purpose: an unthrottled drag can fire
+  // dozens of move events per second, and at full float precision each point costs
+  // ~35-40 JSON characters -- across many strokes on many images this metadata alone
+  // can grow large enough to threaten localStorage's quota, even with the (much
+  // larger) image bytes stored separately in IndexedDB/save folder.
+  const PAINT_MIN_POINT_DIST = 0.006; // ~0.6% of the image's displayed width/height
+  function roundPoint(p){ return { x: Math.round(p.x*1000)/1000, y: Math.round(p.y*1000)/1000 }; }
   function paintPointerMove(e){
     if(!paintDrawing || !paintCurrentStroke) return;
     e.preventDefault();
-    paintCurrentStroke.points.push(paintEventPoint(e));
+    const pt = roundPoint(paintEventPoint(e));
+    const last = paintCurrentStroke.points[paintCurrentStroke.points.length-1];
+    if(last && Math.hypot(pt.x-last.x, pt.y-last.y) < PAINT_MIN_POINT_DIST) return;
+    paintCurrentStroke.points.push(pt);
     renderPaintEditorSvg();
   }
   function paintPointerUp(){
