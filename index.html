@@ -658,7 +658,9 @@
     input[type=text], input[type=number], input[type=color], textarea, select{ font-size:16px; }
 
     /* Modals: fixed pixel widths meant for desktop overflow a phone screen entirely. */
-    .settings-modal-inner, .crop-modal-inner{ width:94vw; max-height:94vh; padding:14px 16px; }
+    .settings-modal-inner, .crop-modal-inner{ width:94vw; max-height:94vh; padding:14px 16px; overflow-y:auto; }
+    #paintImgWrap img{ max-height:32vh; }
+    .paint-toolbar{ gap:6px; }
     #lightbox{ padding:10px; }
     .lightbox-inner{ max-width:98vw; max-height:94vh; height:94vh; flex-direction:column; min-height:0; }
     .lightbox-img-wrap{ max-width:100%; flex:0 0 auto; max-height:42vh; }
@@ -699,7 +701,7 @@
       <button class="tab active" data-mode="slideshow">① スライドショーモード</button>
       <button class="tab" data-mode="compose">② 画像指定モード</button>
     </nav>
-    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v154</span>
+    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v155</span>
     <button id="settingsBtn" class="btn ghost">⚙ 設定</button>
     <button id="previewBtn" class="btn ghost">⛶ プレビュー(全画面向け)</button>
   </header>
@@ -2372,7 +2374,13 @@
       const cr = cropRectOf(item);
       item.paintStrokes.forEach(s=> lightboxPaintOverlayEl.appendChild(buildPaintPolyline(strokeToCropped(s, cr))));
     }
-    lightboxImgEl.onload = positionLightboxPaintOverlay;
+    lightboxImgEl.onload = ()=>{
+      // Re-set on load (not just at src-assignment time) -- object-view-box can fail
+      // to visibly apply on the very first paint of a freshly-loading image in some
+      // cases, only "catching up" once something else forces a later reflow.
+      lightboxImgEl.style.objectViewBox = cssObjectViewBoxFor(item) || '';
+      positionLightboxPaintOverlay();
+    };
     positionLightboxPaintOverlay();
     const panel = lightboxPanelEl;
     panel.innerHTML = '';
@@ -4608,6 +4616,10 @@
         const ovb = cssObjectViewBoxFor(node.image);
         if(ovb) img.style.objectViewBox = ovb;
         img.style.objectPosition = `${node.panX!=null? node.panX : 50}% ${node.panY!=null? node.panY : 50}%`;
+        // Re-apply on load, not just at src-assignment time -- object-view-box can
+        // fail to visibly take effect on the very first paint of a freshly-loading
+        // image in some cases (see the identical fix in openLightbox).
+        if(ovb) img.addEventListener('load', ()=>{ img.style.objectViewBox = cssObjectViewBoxFor(node.image) || ''; });
         el.appendChild(img);
         const overlay = buildPaintOverlaySvg(node.image);
         if(overlay) el.appendChild(overlay);
