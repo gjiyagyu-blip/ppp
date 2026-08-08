@@ -662,6 +662,15 @@
 
     /* Modals: fixed pixel widths meant for desktop overflow a phone screen entirely. */
     .settings-modal-inner, .crop-modal-inner{ width:94vw; max-height:94vh; padding:14px 16px; overflow-y:auto; }
+    .crop-handle{ width:28px; height:28px; }
+    .crop-handle.tl, .crop-handle.tr{ top:-15px; }
+    .crop-handle.bl, .crop-handle.br{ bottom:-15px; }
+    .crop-handle.tl, .crop-handle.bl{ left:-15px; }
+    .crop-handle.tr, .crop-handle.br{ right:-15px; }
+    .crop-handle.t{ top:-15px; margin-left:-14px; }
+    .crop-handle.b{ bottom:-15px; margin-left:-14px; }
+    .crop-handle.l{ left:-15px; margin-top:-14px; }
+    .crop-handle.r{ right:-15px; margin-top:-14px; }
     #paintImgWrap img{ max-height:32vh; }
     .paint-toolbar{ gap:6px; }
     #lightbox{ padding:10px; }
@@ -704,7 +713,7 @@
       <button class="tab active" data-mode="slideshow">① スライドショーモード</button>
       <button class="tab" data-mode="compose">② 画像指定モード</button>
     </nav>
-    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v157</span>
+    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v159</span>
     <button id="settingsBtn" class="btn ghost">⚙ 設定</button>
     <button id="previewBtn" class="btn ghost">⛶ プレビュー(全画面向け)</button>
   </header>
@@ -1756,6 +1765,7 @@
       img.src = item.url;
       const ovb = cssObjectViewBoxFor(item);
       if(ovb){
+        img.style.objectViewBox = ovb;
         img.addEventListener('load', ()=>{
           img.style.objectViewBox = '';
           requestAnimationFrame(()=>{ img.style.objectViewBox = ovb; });
@@ -6774,22 +6784,29 @@
     updateLightboxHqBtn(lbCurrentItem);
     lightboxHqBtn.disabled = false;
   });
-  cropRectEl.addEventListener('mousedown', e=>{
+  function cropDragPoint(e){
+    const t = e.touches && e.touches[0];
+    return { clientX: t ? t.clientX : e.clientX, clientY: t ? t.clientY : e.clientY };
+  }
+  function cropDragStart(e){
     const handle = e.target.closest('.crop-handle');
     const box = cropImgBox();
     const rectBox = cropRectEl.getBoundingClientRect();
+    const p = cropDragPoint(e);
     cropDrag = {
       mode: handle ? handle.dataset.handle : 'move',
-      startX: e.clientX, startY: e.clientY,
+      startX: p.clientX, startY: p.clientY,
       rectLeft: rectBox.left - box.left, rectTop: rectBox.top - box.top,
       rectW: rectBox.width, rectH: rectBox.height,
       boxW: box.width, boxH: box.height
     };
     e.preventDefault(); e.stopPropagation();
-  });
-  document.addEventListener('mousemove', e=>{
+  }
+  function cropDragMove(e){
     if(!cropDrag) return;
-    const dx = e.clientX - cropDrag.startX, dy = e.clientY - cropDrag.startY;
+    e.preventDefault();
+    const p = cropDragPoint(e);
+    const dx = p.clientX - cropDrag.startX, dy = p.clientY - cropDrag.startY;
     const MIN = 24;
     let { rectLeft:l, rectTop:t, rectW:w, rectH:h, boxW, boxH } = cropDrag;
     if(cropDrag.mode === 'move'){
@@ -6801,8 +6818,13 @@
       if(cropDrag.mode.includes('b')){ h = clamp(h+dy, MIN, boxH-t); }
     }
     setCropRectPx(l, t, w, h);
-  });
+  }
+  cropRectEl.addEventListener('mousedown', cropDragStart);
+  cropRectEl.addEventListener('touchstart', cropDragStart, { passive:false });
+  document.addEventListener('mousemove', cropDragMove);
+  document.addEventListener('touchmove', cropDragMove, { passive:false });
   document.addEventListener('mouseup', ()=>{ cropDrag = null; });
+  document.addEventListener('touchend', ()=>{ cropDrag = null; });
   document.addEventListener('dragend', ()=>{
     document.querySelectorAll('.reorder-indicator').forEach(el=> el.style.display = 'none');
   });
