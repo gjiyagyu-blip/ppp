@@ -266,9 +266,8 @@
   }
   #lightbox.show{ display:flex; }
   .lightbox-inner{ display:flex; gap:20px; max-width:92vw; max-height:88vh; }
-  .lightbox-img-wrap{ position:relative; display:flex; align-items:center; justify-content:center; max-width:70vw; max-height:88vh; flex:1 1 auto; min-width:0; }
-  .lightbox-img-wrap.has-crop{ overflow:hidden; }
-  .lightbox-img-wrap img{ max-width:70vw; max-height:88vh; object-fit:contain; border-radius:4px; box-shadow:0 10px 40px rgba(0,0,0,0.6); }
+  .lightbox-img-wrap{ position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; flex:1; height:88vh; min-width:0; }
+  .lightbox-img-wrap img{ border-radius:4px; box-shadow:0 10px 40px rgba(0,0,0,0.6); }
   .lightbox-panel-outer{ position:relative; width:340px; flex:0 0 340px; }
   .lightbox-panel{
     width:100%; height:100%; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
@@ -676,8 +675,8 @@
     .paint-toolbar{ gap:6px; }
     #lightbox{ padding:10px; }
     .lightbox-inner{ max-width:98vw; max-height:94vh; height:94vh; flex-direction:column; min-height:0; }
-    .lightbox-img-wrap{ max-width:100%; flex:0 0 auto; max-height:42vh; }
-    .lightbox-img-wrap img{ max-width:100%; max-height:42vh; }
+    .lightbox-img-wrap{ flex:0 0 42vh; height:42vh; width:100%; }
+    .lightbox-img-wrap img{ max-width:100%; }
     /* flex:1 1 auto alone still lets this item grow past the lightbox's height
        instead of triggering .lightbox-panel's own overflow-y:auto -- flex-basis:0
        plus min-height:0 is what actually forces it to the remaining space and lets
@@ -714,7 +713,7 @@
       <button class="tab active" data-mode="slideshow">① スライドショーモード</button>
       <button class="tab" data-mode="compose">② 画像指定モード</button>
     </nav>
-    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v162</span>
+    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v165</span>
     <button id="settingsBtn" class="btn ghost">⚙ 設定</button>
     <button id="previewBtn" class="btn ghost">⛶ プレビュー(全画面向け)</button>
   </header>
@@ -2384,15 +2383,6 @@
     if(item.paintStrokes && item.paintStrokes.length){
       item.paintStrokes.forEach(s=> lightboxPaintOverlayEl.appendChild(buildPaintPolyline(s)));
     }
-    if(item.cropRect && item.el && item.el.naturalWidth){
-      const cropAR = (item.cropRect.w*item.el.naturalWidth) / (item.cropRect.h*item.el.naturalHeight);
-      lightboxImgEl.parentElement.style.aspectRatio = cropAR;
-      lightboxImgEl.parentElement.classList.add('has-crop');
-    } else {
-      lightboxImgEl.parentElement.style.aspectRatio = '';
-      lightboxImgEl.parentElement.classList.remove('has-crop');
-    }
-    applyCropFit(lightboxImgEl, lightboxImgEl.parentElement, item, 'contain', lightboxPaintOverlayEl);
     const panel = lightboxPanelEl;
     panel.innerHTML = '';
     const h = document.createElement('h4');
@@ -2582,6 +2572,13 @@
       updateLightboxFavBtn(item);
     };
     lightboxEl.classList.add('show');
+    lightboxImgEl.style.position = '';
+    lightboxImgEl.style.width = ''; lightboxImgEl.style.height = '';
+    lightboxImgEl.style.left = ''; lightboxImgEl.style.top = '';
+    lightboxImgEl.style.objectFit = 'contain';
+    lightboxImgEl.style.maxWidth = '100%';
+    lightboxImgEl.style.maxHeight = '100%';
+    lightboxPaintOverlayEl.style.display = 'none';
   }
   function updateLightboxFavBtn(item){
     const isFav = isFavoriteItem(item);
@@ -4025,6 +4022,46 @@
       const Cw = rect.width, Ch = rect.height;
       if(!Cw || !Ch) return;
       const s = mode==='contain' ? Math.min(Cw/cw, Ch/ch) : Math.max(Cw/cw, Ch/ch);
+      img.style.position = 'absolute';
+      img.style.width = (iw*s) + 'px';
+      img.style.height = (ih*s) + 'px';
+      img.style.left = (-(cx*s) + (Cw-cw*s)/2) + 'px';
+      img.style.top = (-(cy*s) + (Ch-ch*s)/2) + 'px';
+      positionOverlay();
+    }
+    if(img.complete && img.naturalWidth) recompute();
+    img.addEventListener('load', recompute);
+    new ResizeObserver(recompute).observe(container);
+  }
+  // Lightbox-specific variant: always positions the image in JS (treating "no crop"
+  // as "crop = the whole image"), rather than switching between CSS object-fit and
+  // JS positioning depending on crop state. The lightbox's wrapper doesn't have a
+  // stable, content-independent size the way a grid cell does, which made the
+  // conditional approach above prone to circular-sizing bugs there specifically --
+  // always computing from measured pixels sidesteps that entirely. Kept as its own
+  // function (not a mode of applyCropFit) so fixing this can't risk regressing the
+  // thumbnail/stage-leaf behavior, which is already confirmed working.
+  function applyLightboxImageFit(img, container, imgObj, overlaySvg){
+    const cr = (imgObj && imgObj.cropRect) || { x:0, y:0, w:1, h:1 };
+    function positionOverlay(){
+      if(!overlaySvg) return;
+      const cRect = container.getBoundingClientRect();
+      const iRect = img.getBoundingClientRect();
+      if(!iRect.width || !iRect.height) return;
+      overlaySvg.style.position = 'absolute';
+      overlaySvg.style.left = (iRect.left - cRect.left) + 'px';
+      overlaySvg.style.top = (iRect.top - cRect.top) + 'px';
+      overlaySvg.style.width = iRect.width + 'px';
+      overlaySvg.style.height = iRect.height + 'px';
+    }
+    function recompute(){
+      if(!img.naturalWidth || !img.naturalHeight) return;
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const cx = cr.x*iw, cy = cr.y*ih, cw = Math.max(1, cr.w*iw), ch = Math.max(1, cr.h*ih);
+      const rect = container.getBoundingClientRect();
+      const Cw = rect.width, Ch = rect.height;
+      if(!Cw || !Ch) return;
+      const s = Math.min(Cw/cw, Ch/ch); // always "contain" -- show the full crop, letterboxed
       img.style.position = 'absolute';
       img.style.width = (iw*s) + 'px';
       img.style.height = (ih*s) + 'px';
