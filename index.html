@@ -713,7 +713,7 @@
       <button class="tab active" data-mode="slideshow">① スライドショーモード</button>
       <button class="tab" data-mode="compose">② 画像指定モード</button>
     </nav>
-    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v160</span>
+    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v161</span>
     <button id="settingsBtn" class="btn ghost">⚙ 設定</button>
     <button id="previewBtn" class="btn ghost">⛶ プレビュー(全画面向け)</button>
   </header>
@@ -2389,7 +2389,7 @@
     } else {
       lightboxImgEl.parentElement.style.aspectRatio = '';
     }
-    applyCropFit(lightboxImgEl, lightboxImgEl.parentElement, item, 'cover', lightboxPaintOverlayEl);
+    applyCropFit(lightboxImgEl, lightboxImgEl.parentElement, item, 'contain', lightboxPaintOverlayEl);
     const panel = lightboxPanelEl;
     panel.innerHTML = '';
     const h = document.createElement('h4');
