@@ -266,7 +266,7 @@
   }
   #lightbox.show{ display:flex; }
   .lightbox-inner{ display:flex; gap:20px; max-width:92vw; max-height:88vh; }
-  .lightbox-img-wrap{ position:relative; display:flex; align-items:center; justify-content:center; max-width:70vw; }
+  .lightbox-img-wrap{ position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; max-width:70vw; max-height:88vh; }
   .lightbox-img-wrap img{ max-width:70vw; max-height:88vh; object-fit:contain; border-radius:4px; box-shadow:0 10px 40px rgba(0,0,0,0.6); }
   .lightbox-panel-outer{ position:relative; width:340px; flex:0 0 340px; }
   .lightbox-panel{
@@ -713,7 +713,7 @@
       <button class="tab active" data-mode="slideshow">① スライドショーモード</button>
       <button class="tab" data-mode="compose">② 画像指定モード</button>
     </nav>
-    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v159</span>
+    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v160</span>
     <button id="settingsBtn" class="btn ghost">⚙ 設定</button>
     <button id="previewBtn" class="btn ghost">⛶ プレビュー(全画面向け)</button>
   </header>
@@ -1763,14 +1763,7 @@
       img.loading = 'lazy';
       img.decoding = 'async';
       img.src = item.url;
-      const ovb = cssObjectViewBoxFor(item);
-      if(ovb){
-        img.style.objectViewBox = ovb;
-        img.addEventListener('load', ()=>{
-          img.style.objectViewBox = '';
-          requestAnimationFrame(()=>{ img.style.objectViewBox = ovb; });
-        });
-      }
+      applyCropFit(img, cell, item, 'cover');
       cell.appendChild(img);
 
       if(opts.isFavorite){
@@ -2386,25 +2379,17 @@
     updateLightboxNav();
     updateLightboxHqBtn(item);
     lightboxImgEl.src = item.url;
-    lightboxImgEl.style.objectViewBox = cssObjectViewBoxFor(item) || '';
     lightboxPaintOverlayEl.innerHTML = '';
     if(item.paintStrokes && item.paintStrokes.length){
-      const cr = cropRectOf(item);
-      item.paintStrokes.forEach(s=> lightboxPaintOverlayEl.appendChild(buildPaintPolyline(strokeToCropped(s, cr))));
+      item.paintStrokes.forEach(s=> lightboxPaintOverlayEl.appendChild(buildPaintPolyline(s)));
     }
-    lightboxImgEl.onload = ()=>{
-      // Force a genuine style change (clear, then reapply on the next frame) rather
-      // than re-assigning the identical value -- if object-view-box failed to
-      // visually apply the first time, setting the same string again may look like
-      // a no-op change to the browser and get skipped entirely.
-      const targetOvb = cssObjectViewBoxFor(item) || '';
-      lightboxImgEl.style.objectViewBox = '';
-      requestAnimationFrame(()=>{
-        lightboxImgEl.style.objectViewBox = targetOvb;
-        positionLightboxPaintOverlay();
-      });
-    };
-    positionLightboxPaintOverlay();
+    if(item.cropRect && item.el && item.el.naturalWidth){
+      const cropAR = (item.cropRect.w*item.el.naturalWidth) / (item.cropRect.h*item.el.naturalHeight);
+      lightboxImgEl.parentElement.style.aspectRatio = cropAR;
+    } else {
+      lightboxImgEl.parentElement.style.aspectRatio = '';
+    }
+    applyCropFit(lightboxImgEl, lightboxImgEl.parentElement, item, 'cover', lightboxPaintOverlayEl);
     const panel = lightboxPanelEl;
     panel.innerHTML = '';
     const h = document.createElement('h4');
@@ -2609,23 +2594,6 @@
     lightboxHqBtn.textContent = item.isHighQuality ? '🪶' : '🔍';
     lightboxHqBtn.title = item.isHighQuality ? 'クリックで軽量版に戻す' : 'クリックで高画質画像を取得';
   }
-  // lightboxImgEl uses object-fit:contain, which can letterbox (leave empty space)
-  // when the image's aspect ratio doesn't match its box -- so the overlay must match
-  // the image's actual rendered rect, not just fill the wrapper the way the stage
-  // leaves' object-fit:cover overlay can.
-  function positionLightboxPaintOverlay(){
-    if(!lightboxEl.classList.contains('show')) return;
-    const wrapBox = lightboxImgEl.parentElement.getBoundingClientRect();
-    const imgBox = lightboxImgEl.getBoundingClientRect();
-    if(!imgBox.width || !imgBox.height) return;
-    lightboxPaintOverlayEl.style.left = (imgBox.left - wrapBox.left) + 'px';
-    lightboxPaintOverlayEl.style.top = (imgBox.top - wrapBox.top) + 'px';
-    lightboxPaintOverlayEl.style.right = 'auto';
-    lightboxPaintOverlayEl.style.bottom = 'auto';
-    lightboxPaintOverlayEl.style.width = imgBox.width + 'px';
-    lightboxPaintOverlayEl.style.height = imgBox.height + 'px';
-  }
-  window.addEventListener('resize', positionLightboxPaintOverlay);
   function closeLightbox(){
     lightboxEl.classList.remove('show');
     lightboxImgEl.src = '';
@@ -2641,7 +2609,7 @@
      records the selected region. Nothing ever reads pixel data back out of a canvas
      for this, so it works even for images without proper CORS headers (which a
      canvas-baking approach could not, since reading pixels from a tainted canvas
-     throws). See cssObjectViewBoxFor/effectiveNaturalSize for how every display path
+     throws). See applyCropFit/effectiveNaturalSize for how every display path
      (pool thumbnails, lightbox, stage leaves) applies the crop, and drawNode for how
      PNG export applies it as a source rect. */
   let cropTargetItem = null;
@@ -2784,33 +2752,24 @@
   }
 
   // Paint-over strokes are metadata too (item.paintStrokes: an array of {color, size,
-  // points}), but unlike the editor's live drawing space, they're always stored
-  // relative to the FULL original image (0-1, ignoring any crop) -- a stable
-  // reference that doesn't shift if the crop is changed later. cropRectOf/toFull/
-  // toCropped convert between that stable space and "whatever's currently visible
-  // given this item's crop" for editing and display. Same non-destructive reasoning
-  // as crop otherwise: no pixel access needed to *display* it (an SVG polyline drawn
+  // points}), always stored as plain 0-1 fractions of the FULL original image,
+  // regardless of any crop -- a stable reference that doesn't shift if the crop is
   // on top works everywhere regardless of CORS), only PNG export needs real pixel
   // access, which was already CORS-gated independently. Per the user's request this
   // only needs to show in the lightbox and slideshow/compose stage, not pool
   // thumbnails -- buildPaintOverlaySvg() is called from just those two places.
+  //
+  // Stroke points are always plain 0-1 fractions of the *full* original image,
+  // regardless of any crop -- applyCropFit's positionOverlay() aligns the overlay
+  // element to the image's actual rendered box every time (whether that box came
+  // from CSS object-fit or the JS crop-fit math), so no per-crop coordinate
+  // conversion is needed here at all; the overlay and the image just share the same
+  // box and the same 0-1 coordinate interpretation of it.
   let paintTargetItem = null;
   let paintWorkingStrokes = [];
   let paintCurrentStroke = null;
   let paintColor = '#000000';
 
-  function cropRectOf(item){ return (item && item.cropRect) || { x:0, y:0, w:1, h:1 }; }
-  // Full-image-space -> the space currently visible through this crop (what the
-  // paint editor and every other display context actually show).
-  function strokeToCropped(stroke, cr){
-    return { color: stroke.color, size: stroke.size / cr.w,
-      points: stroke.points.map(p=> ({ x:(p.x-cr.x)/cr.w, y:(p.y-cr.y)/cr.h })) };
-  }
-  // The inverse: whatever's visible right now -> stable full-image-space for storage.
-  function strokeToFull(stroke, cr){
-    return { color: stroke.color, size: stroke.size * cr.w,
-      points: stroke.points.map(p=> ({ x: cr.x + p.x*cr.w, y: cr.y + p.y*cr.h })) };
-  }
   function buildPaintPolyline(stroke){
     const poly = document.createElementNS('http://www.w3.org/2000/svg','polyline');
     poly.setAttribute('points', stroke.points.map(p=> `${(p.x*100).toFixed(2)},${(p.y*100).toFixed(2)}`).join(' '));
@@ -2822,18 +2781,14 @@
     return poly;
   }
   // Read-only overlay for display contexts (lightbox, stage leaves). Returns null if
-  // there's nothing to paint, so callers can skip appending anything. Converts from
-  // the item's stable full-image storage space to whatever's currently visible
-  // through its crop (if any) -- so display always matches the current crop even if
-  // painting happened before the crop was set or changed.
+  // there's nothing to paint, so callers can skip appending anything.
   function buildPaintOverlaySvg(item){
     if(!item.paintStrokes || !item.paintStrokes.length) return null;
-    const cr = cropRectOf(item);
     const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
     svg.setAttribute('class', 'paint-overlay-svg');
     svg.setAttribute('preserveAspectRatio','none');
     svg.setAttribute('viewBox','0 0 100 100');
-    item.paintStrokes.forEach(s=> svg.appendChild(buildPaintPolyline(strokeToCropped(s, cr))));
+    item.paintStrokes.forEach(s=> svg.appendChild(buildPaintPolyline(s)));
     return svg;
   }
   function renderPaintEditorSvg(){
@@ -2849,14 +2804,13 @@
   }
   function openPaintTool(item){
     paintTargetItem = item;
-    // The editor always paints over the same cropped view shown everywhere else, so
-    // convert the item's stably-stored (full-image-space) strokes into that view for
-    // editing; they get converted back on Apply.
-    const cr = cropRectOf(item);
-    paintWorkingStrokes = (item.paintStrokes || []).map(s=> strokeToCropped(s, cr));
+    // Always paint on the full original image (same as the crop tool) -- strokes are
+    // stored as plain fractions of it, so there's no view-dependent conversion to
+    // worry about, and painting near what a crop will later hide is harmless (it
+    // just won't be visible once cropped, same as with the original image content).
+    paintWorkingStrokes = (item.paintStrokes || []).map(s=> ({ color:s.color, size:s.size, points:s.points.slice() }));
     paintCurrentStroke = null;
     paintImgEl.src = item.url;
-    paintImgEl.style.objectViewBox = cssObjectViewBoxFor(item) || '';
     paintImgEl.onload = renderPaintEditorSvg;
     paintModalEl.classList.add('show');
   }
@@ -2866,14 +2820,13 @@
     paintWorkingStrokes = [];
     paintCurrentStroke = null;
   }
-  function applyPaint(item, strokesInCroppedSpace){
-    const cr = cropRectOf(item);
-    item.paintStrokes = strokesInCroppedSpace.length ? strokesInCroppedSpace.map(s=> strokeToFull(s, cr)) : null;
+  function applyPaint(item, strokes){
+    item.paintStrokes = strokes.length ? strokes : null;
     if(isFavoriteItem(item)) persistFavorites();
     refreshFavoriteAwareGrids();
     renderComposeStage();
     if(lightboxEl.classList.contains('show')) openLightbox(item, lbPool, lbIndex);
-    showToast(strokesInCroppedSpace.length ? '塗りつぶしを適用しました' : '塗りつぶしを解除しました');
+    showToast(strokes.length ? '塗りつぶしを適用しました' : '塗りつぶしを解除しました');
   }
 
   /* ===================== local-image save folder (File System Access API) =====================
@@ -4022,18 +3975,63 @@
     }
     return el.naturalWidth / el.naturalHeight;
   }
-  // CSS object-view-box lets object-fit/object-position treat a sub-rectangle of the
-  // image as if it were the whole image -- exactly what's needed to compose the
-  // user's manual crop together with the existing cover-fit + pan system, with no
-  // pixel access (and therefore no CORS taint risk) at all. Supported in current
-  // Chrome/Edge (this app's recommended browsers already, for File System Access);
-  // on browsers without it the image just shows uncropped rather than erroring.
-  function cssObjectViewBoxFor(imgObj){
+  // Classic, universally-supported crop technique: absolutely position and scale the
+  // <img> element (in pixels, computed from measured natural/container size) so only
+  // the cropped region is visible within the container, which has overflow:hidden.
+  // Replaces an earlier attempt using CSS object-view-box, which turned out to still
+  // be marked "experimental" by MDN even in current Chrome and wasn't reliably taking
+  // effect -- this technique is plain absolute positioning, supported by every
+  // browser for decades, so there's nothing "unreliable" left for it to depend on.
+  // mode: 'cover' (fills the container, cropping overflow, like object-fit:cover) or
+  // 'contain' (fits entirely within the container, letterboxing, like object-fit:contain).
+  // overlaySvg, if given, is a paint-overlay SVG (viewBox "0 0 100 100") that gets
+  // sized/positioned to exactly match the image's own rendered box every time it's
+  // recomputed -- so stroke points, stored as plain 0-1 fractions of the full image,
+  // always align correctly regardless of how the image itself ended up positioned.
+  function applyCropFit(img, container, imgObj, mode, overlaySvg){
     const cr = imgObj && imgObj.cropRect;
-    if(!cr) return '';
-    const top = clamp(cr.y, 0, 1)*100, left = clamp(cr.x, 0, 1)*100;
-    const bottom = clamp(1-cr.y-cr.h, 0, 1)*100, right = clamp(1-cr.x-cr.w, 0, 1)*100;
-    return `inset(${top}% ${right}% ${bottom}% ${left}%)`;
+    function positionOverlay(){
+      if(!overlaySvg) return;
+      const cRect = container.getBoundingClientRect();
+      const iRect = img.getBoundingClientRect();
+      if(!iRect.width || !iRect.height) return;
+      overlaySvg.style.position = 'absolute';
+      overlaySvg.style.left = (iRect.left - cRect.left) + 'px';
+      overlaySvg.style.top = (iRect.top - cRect.top) + 'px';
+      overlaySvg.style.width = iRect.width + 'px';
+      overlaySvg.style.height = iRect.height + 'px';
+    }
+    if(!cr){
+      img.style.position = '';
+      img.style.width = ''; img.style.height = '';
+      img.style.left = ''; img.style.top = '';
+      img.style.objectFit = mode || '';
+      if(overlaySvg){
+        img.addEventListener('load', positionOverlay);
+        requestAnimationFrame(positionOverlay);
+        new ResizeObserver(positionOverlay).observe(container);
+      }
+      return;
+    }
+    img.style.objectFit = '';
+    function recompute(){
+      if(!img.naturalWidth || !img.naturalHeight) return;
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+      const cx = cr.x*iw, cy = cr.y*ih, cw = Math.max(1, cr.w*iw), ch = Math.max(1, cr.h*ih);
+      const rect = container.getBoundingClientRect();
+      const Cw = rect.width, Ch = rect.height;
+      if(!Cw || !Ch) return;
+      const s = mode==='contain' ? Math.min(Cw/cw, Ch/ch) : Math.max(Cw/cw, Ch/ch);
+      img.style.position = 'absolute';
+      img.style.width = (iw*s) + 'px';
+      img.style.height = (ih*s) + 'px';
+      img.style.left = (-(cx*s) + (Cw-cw*s)/2) + 'px';
+      img.style.top = (-(cy*s) + (Ch-ch*s)/2) + 'px';
+      positionOverlay();
+    }
+    if(img.complete && img.naturalWidth) recompute();
+    img.addEventListener('load', recompute);
+    new ResizeObserver(recompute).observe(container);
   }
   // The natural size to use for cover-fit/pan-overflow math: the cropped region's
   // pixel size when a crop is set, otherwise the image's own full natural size.
@@ -4636,19 +4634,11 @@
         const img = document.createElement('img');
         img.src = node.image.url;
         if(node.image.cors) img.crossOrigin = 'anonymous';
-        const ovb = cssObjectViewBoxFor(node.image);
-        if(ovb) img.style.objectViewBox = ovb;
         img.style.objectPosition = `${node.panX!=null? node.panX : 50}% ${node.panY!=null? node.panY : 50}%`;
-        // Force a genuine style change on load (clear, then reapply) rather than
-        // re-assigning the identical value -- see the identical fix in openLightbox
-        // for why re-setting the same string can fail to actually take effect.
-        if(ovb) img.addEventListener('load', ()=>{
-          img.style.objectViewBox = '';
-          requestAnimationFrame(()=>{ img.style.objectViewBox = ovb; });
-        });
         el.appendChild(img);
         const overlay = buildPaintOverlaySvg(node.image);
         if(overlay) el.appendChild(overlay);
+        applyCropFit(img, el, node.image, 'cover', overlay);
       } else if(editable){
         const label = document.createElement('div');
         label.className = 'empty-label';
@@ -4759,15 +4749,18 @@
         ctx.clip();
         ctx.drawImage(img, sx, sy, sw, sh, dx, dy, size.w, size.h);
         if(imgObj.paintStrokes && imgObj.paintStrokes.length){
-          const cr = cropRectOf(imgObj);
+          const iw = img.naturalWidth, ih = img.naturalHeight;
           ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-          imgObj.paintStrokes.forEach(rawStroke=>{
-            const stroke = strokeToCropped(rawStroke, cr);
+          imgObj.paintStrokes.forEach(stroke=>{
             ctx.beginPath();
             ctx.strokeStyle = stroke.color;
-            ctx.lineWidth = Math.max(1, (stroke.size/100) * size.w);
+            // stroke.size is a % of the full image's width (see the paint tool's
+            // brush-size slider); convert to natural pixels, then to destination
+            // pixels via the same source->dest scale the image itself was drawn at.
+            ctx.lineWidth = Math.max(1, (stroke.size/100) * iw * (size.w/sw));
             stroke.points.forEach((p,i)=>{
-              const px = dx + p.x*size.w, py = dy + p.y*size.h;
+              const px = dx + ((p.x*iw - sx)/sw) * size.w;
+              const py = dy + ((p.y*ih - sy)/sh) * size.h;
               if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
             });
             ctx.stroke();
