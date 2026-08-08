@@ -701,7 +701,7 @@
       <button class="tab active" data-mode="slideshow">① スライドショーモード</button>
       <button class="tab" data-mode="compose">② 画像指定モード</button>
     </nav>
-    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v155</span>
+    <span id="versionLabel" style="font-size:0.65rem; color:var(--text-faint); flex:0 0 auto;">v156</span>
     <button id="settingsBtn" class="btn ghost">⚙ 設定</button>
     <button id="previewBtn" class="btn ghost">⛶ プレビュー(全画面向け)</button>
   </header>
@@ -1752,7 +1752,12 @@
       img.decoding = 'async';
       img.src = item.url;
       const ovb = cssObjectViewBoxFor(item);
-      if(ovb) img.style.objectViewBox = ovb;
+      if(ovb){
+        img.addEventListener('load', ()=>{
+          img.style.objectViewBox = '';
+          requestAnimationFrame(()=>{ img.style.objectViewBox = ovb; });
+        });
+      }
       cell.appendChild(img);
 
       if(opts.isFavorite){
@@ -2375,11 +2380,16 @@
       item.paintStrokes.forEach(s=> lightboxPaintOverlayEl.appendChild(buildPaintPolyline(strokeToCropped(s, cr))));
     }
     lightboxImgEl.onload = ()=>{
-      // Re-set on load (not just at src-assignment time) -- object-view-box can fail
-      // to visibly apply on the very first paint of a freshly-loading image in some
-      // cases, only "catching up" once something else forces a later reflow.
-      lightboxImgEl.style.objectViewBox = cssObjectViewBoxFor(item) || '';
-      positionLightboxPaintOverlay();
+      // Force a genuine style change (clear, then reapply on the next frame) rather
+      // than re-assigning the identical value -- if object-view-box failed to
+      // visually apply the first time, setting the same string again may look like
+      // a no-op change to the browser and get skipped entirely.
+      const targetOvb = cssObjectViewBoxFor(item) || '';
+      lightboxImgEl.style.objectViewBox = '';
+      requestAnimationFrame(()=>{
+        lightboxImgEl.style.objectViewBox = targetOvb;
+        positionLightboxPaintOverlay();
+      });
     };
     positionLightboxPaintOverlay();
     const panel = lightboxPanelEl;
@@ -4616,10 +4626,13 @@
         const ovb = cssObjectViewBoxFor(node.image);
         if(ovb) img.style.objectViewBox = ovb;
         img.style.objectPosition = `${node.panX!=null? node.panX : 50}% ${node.panY!=null? node.panY : 50}%`;
-        // Re-apply on load, not just at src-assignment time -- object-view-box can
-        // fail to visibly take effect on the very first paint of a freshly-loading
-        // image in some cases (see the identical fix in openLightbox).
-        if(ovb) img.addEventListener('load', ()=>{ img.style.objectViewBox = cssObjectViewBoxFor(node.image) || ''; });
+        // Force a genuine style change on load (clear, then reapply) rather than
+        // re-assigning the identical value -- see the identical fix in openLightbox
+        // for why re-setting the same string can fail to actually take effect.
+        if(ovb) img.addEventListener('load', ()=>{
+          img.style.objectViewBox = '';
+          requestAnimationFrame(()=>{ img.style.objectViewBox = ovb; });
+        });
         el.appendChild(img);
         const overlay = buildPaintOverlaySvg(node.image);
         if(overlay) el.appendChild(overlay);
